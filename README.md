@@ -1,7 +1,3 @@
-
-```markdown
-# README
-
 ## Environment
 
 1. **Install Blender**  
@@ -30,7 +26,7 @@ Open and edit the parameters in **`render_script.py`** as needed:
 
 ### 1. Render Multiple Models
 
-- `json_folder_path` = `"path/to/transformation/json/files"`
+- `json_folder_path` = `"path/to/transformation/folder"`
 - `model_folder_path` = `"path/to/model/folder"`
 - `output_folder`     = `"path/to/output/folder"`
 - `single_mode`       = `False`
@@ -39,12 +35,13 @@ Open and edit the parameters in **`render_script.py`** as needed:
 
 ### 2. Render a Single Model
 
-- `json_folder_path` = `"path/to/transformation/json/file"`
+- `json_folder_path` = `"path/to/the/transformation/json/file"`
+  *(Should be the specific file instead of the folder.)*
 - `model_folder_path` = `"path/to/model/folder"`
 - `output_folder`     = `"path/to/output/folder"`
 - `single_mode`       = `True`
 - `file_num`          = `100`  
-  *(You can set this to any number you prefer.)*
+  *(It can be whatever number, as it does not matter)*
 
 ---
 
@@ -56,6 +53,15 @@ Each JSON file should include:
 - **Prediction transformation**
 
 For examples, see the JSON files under the `transformation_data_example` directory.
-```
 
-Feel free to adjust paths or numbers according to your specific setup.# fragments_assembly_vistool
+---
+
+## Run Script
+
+blender --background --python render_script.py          
+
+---
+
+## video_mosaic2
+
+This is a tool to create mosaic video. If you only want to visualise the assembly result, it is not required.

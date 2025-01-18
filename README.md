@@ -36,6 +36,7 @@ Open and edit the parameters in **`render_script.py`** as needed:
 ### 2. Render a Single Model
 
 - `json_folder_path` = `"path/to/the/transformation/json/file"`
+  
   *(Should be the specific file instead of the folder.)*
 - `model_folder_path` = `"path/to/model/folder"`
 - `output_folder`     = `"path/to/output/folder"`
@@ -57,9 +58,9 @@ For examples, see the JSON files under the `transformation_data_example` directo
 ---
 
 ## Run Script
-
+```bash
 blender --background --python render_script.py          
-
+```
 ---
 
 ## video_mosaic2

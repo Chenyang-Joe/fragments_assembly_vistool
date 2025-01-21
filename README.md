@@ -30,6 +30,9 @@ Open and edit the parameters in **`render_script.py`** as needed:
 - `model_folder_path` = `"path/to/model/folder"`
 - `output_folder`     = `"path/to/output/folder"`
 - `single_mode`       = `False`
+- `dotted_line`       = `True`  
+
+  *(Whether to add dotted line)*
 - `file_num`          = `100`  
   *(Number of files randomly drawn from the JSON folder.)*
 
@@ -41,6 +44,9 @@ Open and edit the parameters in **`render_script.py`** as needed:
 - `model_folder_path` = `"path/to/model/folder"`
 - `output_folder`     = `"path/to/output/folder"`
 - `single_mode`       = `True`
+- `dotted_line`       = `True`  
+
+  *(Whether to add dotted line)*
 - `file_num`          = `100`  
   *(It can be whatever number, as it does not matter)*
 

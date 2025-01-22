@@ -5,6 +5,7 @@ import json
 import subprocess
 from mathutils import Quaternion, Vector, Matrix
 import numpy as np
+import shutil
 
 def select_model(folder_path, file_num, single_mode):
     if single_mode:
@@ -150,38 +151,6 @@ def apply_final_transformation(obj, init_pose, gt_transformation, transformation
     local_com = com_list[obj_index]
     return obj.matrix_world @ local_com
 
-def adjust_material_to_metal(objects):
-    """Adjust all objects' materials to have a plastic-like appearance."""
-    for obj in objects:
-        if obj.type == 'MESH':
-            # Ensure the object has a material
-            mat = obj.active_material
-            if not mat:
-                mat = bpy.data.materials.new(name=f"Material_{obj.name}")
-                obj.data.materials.append(mat)
-
-            mat.use_nodes = True
-            nodes = mat.node_tree.nodes
-            links = mat.node_tree.links
-
-            # Clear existing nodes
-            for node in nodes:
-                nodes.remove(node)
-
-            # Add Principled BSDF for plastic appearance
-            bsdf = nodes.new(type="ShaderNodeBsdfPrincipled")
-            bsdf.location = (0, 0)
-            bsdf.inputs[4].default_value = 0  # Roughness for plastic
-            bsdf.inputs[7].default_value = 0.1  # Metallic
-
-            # Add Material Output node
-            output = nodes.new(type="ShaderNodeOutputMaterial")
-            output.location = (200, 0)
-
-            # Link BSDF to Material Output
-            links.new(bsdf.outputs[0], output.inputs[0])
-
-
 def setup_light():
     """Add multiple lights to the scene."""
     def point_light_at(light, target_location):
@@ -259,10 +228,28 @@ def set_white_background():
     comp_links.new(white_color.outputs[0], alpha_over.inputs[1])   # White to upper layer
     comp_links.new(alpha_over.outputs[0], composite_output.inputs[0])  # Alpha over to composite
 
-def render_and_export(output_path):
+def render_and_export(output_path, render = "EEVEE"):
     """Render the scene and export the image."""
-    bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'  # Use Cycles rendering engine
-    # Eevee does not use device settings like Cycles  # Use CPU rendering to avoid Metal issues
+    if render == "EEVEE":
+        bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'  # Use Cycles rendering engine
+        # Eevee does not use device settings like Cycles  # Use CPU rendering to avoid Metal issues
+    elif render == "CYCLES":
+        bpy.context.scene.render.engine = 'CYCLES'
+        bpy.context.scene.cycles.device = 'CPU'
+        bpy.context.scene.cycles.samples = 1024
+    elif render == "CYCLES_GPU":
+        bpy.context.scene.render.engine = 'CYCLES'
+        bpy.context.scene.cycles.device = 'GPU'
+        bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'  # or 'OPTIX', 'OPENCL', 'METAL'
+        bpy.context.scene.cycles.samples = 1024
+
+        for device in bpy.context.preferences.addons['cycles'].preferences.devices:
+            if device.type in {'CUDA', 'OPTIX', 'OPENCL', 'METAL'}:
+                device.use = True
+
+    else:
+        print("must specify a render type")
+
 
     resolution = bpy.context.scene.render.resolution_y  # Use current width as the base
     bpy.context.scene.render.resolution_x = resolution  # Set height equal to width for square output
@@ -418,6 +405,9 @@ def add_trajectory(imported_objects, objects_location_com):
         for i, co in enumerate(coords):
             poly.points[i].co = (co.x, co.y, co.z, 1.0)
 
+
+
+
 def generate(json_path, output_folder, model_folder_path, dotted_line = True):
     """Main function to orchestrate the process."""
     gt_trans_rots, pred_trans_rots, init_pose, model_path = read_json(json_path)
@@ -425,6 +415,9 @@ def generate(json_path, output_folder, model_folder_path, dotted_line = True):
     output_folder_sub, json_name = make_new_folder(output_folder, json_path)
     output_folder_video = os.path.join(output_folder, "video")
     os.makedirs(output_folder_video, exist_ok=True)
+    shutil.copy2(json_path, output_folder_sub)
+
+    add_asset("material/pigeon_pastal.blend")
 
     reset_scene()
 
@@ -436,7 +429,8 @@ def generate(json_path, output_folder, model_folder_path, dotted_line = True):
 
     # # Assign random colors to each object
     for obj in imported_objects:
-        assign_random_color(obj)
+        # assign_random_color(obj)
+        adjust_material(obj, "Pigeon Blue pastel SWISS KRONO plastic", False)
 
     # Set up light
     setup_light()
@@ -473,7 +467,7 @@ def generate(json_path, output_folder, model_folder_path, dotted_line = True):
         if dotted_line:
             add_trajectory(imported_objects, objects_location_com)
         step_output_path = os.path.join(output_folder_sub, f"{step_idx:04d}.png")
-        render_and_export(step_output_path)
+        render_and_export(step_output_path, "CYCLES")
         frame += 1
     fill_colors()
     save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{json_name}.mp4", frame= frame)
@@ -482,6 +476,54 @@ def generate(json_path, output_folder, model_folder_path, dotted_line = True):
     blend_file_path = os.path.join(output_folder_sub, f"scene{json_name}.blend")
     save_blend_file(blend_file_path)
 
+
+def add_asset(source_blend_path):
+    if not os.path.exists(source_blend_path):
+        print(f"source .blend file does not exist: {source_blend_path}")
+        return
+
+    with bpy.data.libraries.load(source_blend_path, link=False) as (data_from, data_to):
+        for mat in data_from.materials:
+            if mat not in data_to.materials:
+                data_to.materials.append(mat)
+        
+
+
+def adjust_material(obj, material_name, use_asset):
+    mat = None
+    if use_asset:
+        asset_mat = bpy.data.materials.get(material_name)
+        mat = asset_mat.copy()
+        if mat is None:
+            print(f"Material '{material_name}' not found in current file!")
+            return
+        mat.name = f"Material_{obj.name}"
+        if len(obj.data.materials) == 0:
+            obj.data.materials.append(mat)
+        else:
+            obj.data.materials[0] = mat
+    else:
+        # if not using material from asset, create a new one.
+        mat = obj.active_material
+        if not mat:
+            mat = bpy.data.materials.new(name=f"Material_{obj.name}")
+            obj.data.materials.append(mat)
+
+    # assign random color
+    mat.use_nodes = True
+    # Get or create Principled BSDF
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if not bsdf:
+        bsdf = mat.node_tree.nodes.new(type="ShaderNodeBsdfPrincipled")
+
+    # Set random color and link the BSDF to Material Output
+    # bsdf.inputs[0].default_value = (random.random(), random.random(), random.random(), 1)  # RGBA
+    bsdf.inputs[0].default_value = random_color()  # RGBA
+    bsdf.inputs[2].default_value = 0.35
+    output = mat.node_tree.nodes.get("Material Output")
+    if not output:
+        output = mat.node_tree.nodes.new(type="ShaderNodeOutputMaterial")
+    mat.node_tree.links.new(bsdf.outputs[0], output.inputs[0])
 
 
 

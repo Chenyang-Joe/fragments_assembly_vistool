@@ -183,7 +183,7 @@ def setup_light():
 
 def setup_camera(target):
     """Add and position a camera to focus on the target object."""
-    bpy.ops.object.camera_add(location=(0, -3.5, 1.2))
+    bpy.ops.object.camera_add(location=(0, -4, 1.5))
     camera = bpy.context.object
     bpy.context.scene.camera = camera
 

@@ -7,7 +7,7 @@ from mathutils import Quaternion, Vector, Matrix
 import numpy as np
 import shutil
 
-def select_model(folder_path, file_num, single_mode):
+def select_model(folder_path, file_num, single_mode, random_draw, range):
     if single_mode:
         return [folder_path]
     if not os.path.isdir(folder_path):
@@ -16,10 +16,23 @@ def select_model(folder_path, file_num, single_mode):
     all_files = [os.path.join(folder_path, name) for name in os.listdir(folder_path)
                    if os.path.isfile(os.path.join(folder_path, name))]
 
+    all_files = sorted(all_files, key=lambda x: int(os.path.basename(x).split('.')[0]))
+
+
     if file_num > len(all_files):
         raise ValueError("folder_num excesses the total folder number")
 
-    file_list = random.sample(all_files, file_num)
+    start = range[0]
+    end = range[1]+1
+    print(start, end)
+    if (end-start<file_num):
+        print("The file number excesses range.")
+    else:
+        if random_draw:
+            file_list = random.sample(all_files[start: end], file_num)
+        else:
+            file_list = all_files[start: start+file_num]
+
 
     return file_list
 
@@ -467,7 +480,7 @@ def generate(json_path, output_folder, model_folder_path, dotted_line = True):
         if dotted_line:
             add_trajectory(imported_objects, objects_location_com)
         step_output_path = os.path.join(output_folder_sub, f"{step_idx:04d}.png")
-        render_and_export(step_output_path, "CYCLES")
+        render_and_export(step_output_path, "EEVEE")
         frame += 1
     fill_colors()
     save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{json_name}.mp4", frame= frame)

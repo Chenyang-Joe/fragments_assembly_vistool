@@ -7,7 +7,7 @@ from mathutils import Quaternion, Vector, Matrix
 import numpy as np
 import shutil
 
-def select_model(folder_path, file_num, single_mode, random_draw, all_files, range):
+def select_model(folder_path, file_num, single_mode, random_draw, traversal_all, range):
     if single_mode:
         return [folder_path]
     if not os.path.isdir(folder_path):
@@ -24,7 +24,7 @@ def select_model(folder_path, file_num, single_mode, random_draw, all_files, ran
 
     start = range[0]
     end = range[1]+1
-    if all_files:
+    if traversal_all:
         file_list = all_files
 
     else:
@@ -425,9 +425,11 @@ def add_trajectory(imported_objects, objects_location_com):
 
 
 
-def generate(json_path, output_folder, model_folder_path, dotted_line = True):
+def generate(json_path, output_folder, model_folder_path, dotted_line, data_mode):
     """Main function to orchestrate the process."""
     gt_trans_rots, pred_trans_rots, init_pose, model_path = read_json(json_path)
+    if data_mode == "jigsaw":
+        pred_trans_rots = pred_trans_rots[None, :]
     model_path = os.path.join(model_folder_path, model_path)
     output_folder_sub, json_name = make_new_folder(output_folder, json_path)
     output_folder_video = os.path.join(output_folder, "video")
@@ -470,7 +472,7 @@ def generate(json_path, output_folder, model_folder_path, dotted_line = True):
     # render_and_export(initial_output_path)
 
     frame =0
-    num_obj = pred_trans_rots.shape[0]
+    num_obj = pred_trans_rots.shape[1]
     objects_location_com = [[]for _ in range(num_obj)]
     com_list = get_local_com_list(imported_objects)
     # Apply predicted transformations step by step and render
@@ -478,7 +480,6 @@ def generate(json_path, output_folder, model_folder_path, dotted_line = True):
         for obj_index, (obj, gt_transform, pred_transform) in enumerate(
             zip(imported_objects, gt_trans_rots, step_transforms)
         ):
-            
             location_com = apply_final_transformation(obj,  init_pose, gt_transform, pred_transform, com_list, obj_index)
             objects_location_com[obj_index].append(location_com)
             if (len(objects_location_com[obj_index])>1) and dotted_line:

@@ -24,8 +24,6 @@
 
 Open and edit the parameters in **`render_script.py`** as needed:
 
-### 1. Render Multiple Models
-
 - `json_folder_path` = `"path/to/transformation/folder"`
 - `model_folder_path` = `"path/to/model/folder"`
 - `output_folder`     = `"path/to/output/folder"`
@@ -35,23 +33,7 @@ Open and edit the parameters in **`render_script.py`** as needed:
 - `all_files`          = `True`
 - `range`             = `[0,7871]`
 - `file_num`          = `100`  
-  *(Number of files randomly drawn from the JSON folder.)*
-
-### 2. Render a Single Model
-
-- `json_folder_path` = `"path/to/the/transformation/json/file"`
-  
-  *(Should be the specific file instead of the folder.)*
-- `model_folder_path` = `"path/to/model/folder"`
-- `output_folder`     = `"path/to/output/folder"`
-- `single_mode`       = `True`
-- `dotted_line`       = `True`  
-
-  *(Options below do not matter)*
-- `random_draw`       = `True`
-- `all_files`          = `True`
-- `range`             = `[0,7871]`
-- `file_num`          = `100`  
+- `data_mode`         = `mode name` 
 
 ---
 

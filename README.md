@@ -32,6 +32,7 @@ Open and edit the parameters in **`render_script.py`** as needed:
 - `single_mode`       = `False`
 - `dotted_line`       = `True`  
 - `random_draw`       = `True`
+- `all_files`          = `True`
 - `range`             = `[0,7871]`
 - `file_num`          = `100`  
   *(Number of files randomly drawn from the JSON folder.)*
@@ -48,6 +49,7 @@ Open and edit the parameters in **`render_script.py`** as needed:
 
   *(Options below do not matter)*
 - `random_draw`       = `True`
+- `all_files`          = `True`
 - `range`             = `[0,7871]`
 - `file_num`          = `100`  
 

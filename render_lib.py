@@ -7,7 +7,7 @@ from mathutils import Quaternion, Vector, Matrix
 import numpy as np
 import shutil
 
-def select_model(folder_path, file_num, single_mode, random_draw, range):
+def select_model(folder_path, file_num, single_mode, random_draw, all_files, range):
     if single_mode:
         return [folder_path]
     if not os.path.isdir(folder_path):
@@ -24,14 +24,18 @@ def select_model(folder_path, file_num, single_mode, random_draw, range):
 
     start = range[0]
     end = range[1]+1
-    print(start, end)
-    if (end-start<file_num):
-        print("The file number excesses range.")
+    if all_files:
+        file_list = all_files
+
     else:
-        if random_draw:
-            file_list = random.sample(all_files[start: end], file_num)
+        if (end-start<file_num):
+            print("The file number excesses range.")
         else:
             file_list = all_files[start: start+file_num]
+            print("Start at:", start, " End at:", end)
+
+    if random_draw:
+        random.shuffle(file_list)
 
 
     return file_list
@@ -296,7 +300,7 @@ def make_new_folder(output_folder, json_path):
     file_name = os.path.splitext(os.path.basename(json_path))[0]
 
     # Create the new folder path
-    new_folder_path = os.path.join(output_folder, file_name)
+    new_folder_path = os.path.join(output_folder, "raw_data", file_name)
 
     # Create the folder
     os.makedirs(new_folder_path, exist_ok=True)
@@ -427,7 +431,9 @@ def generate(json_path, output_folder, model_folder_path, dotted_line = True):
     model_path = os.path.join(model_folder_path, model_path)
     output_folder_sub, json_name = make_new_folder(output_folder, json_path)
     output_folder_video = os.path.join(output_folder, "video")
+    output_folder_preview = os.path.join(output_folder, "preview")
     os.makedirs(output_folder_video, exist_ok=True)
+    os.makedirs(output_folder_preview, exist_ok=True)
     shutil.copy2(json_path, output_folder_sub)
 
     add_asset("material/pigeon_pastal.blend")
@@ -482,6 +488,8 @@ def generate(json_path, output_folder, model_folder_path, dotted_line = True):
         step_output_path = os.path.join(output_folder_sub, f"{step_idx:04d}.png")
         render_and_export(step_output_path, "EEVEE")
         frame += 1
+    preview_output_path = os.path.join(output_folder_preview, f"{json_name}.png")
+    render_and_export(preview_output_path, "EEVEE")
     fill_colors()
     save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{json_name}.mp4", frame= frame)
 

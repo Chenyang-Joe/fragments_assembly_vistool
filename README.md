@@ -18,6 +18,11 @@
    pip install bpy
    ```
 
+5. **Install `ffmpeg`**  
+   ```bash
+   conda install -c conda-forge ffmpeg
+   ```
+
 ---
 
 ## Set Up Parameters

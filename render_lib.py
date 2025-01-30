@@ -8,27 +8,28 @@ import numpy as np
 import shutil
 import glob
 
-def select_model(folder_path, file_num, single_mode, random_draw, traversal_all, range):
+def select_model(folder_path, file_num, single_mode, random_draw, traversal_all, range, data_mode):
     if single_mode:
         return [folder_path]
     if not os.path.isdir(folder_path):
         raise ValueError(f"{folder_path} not a avaliable folder path")
 
-    all_files = [os.path.join(folder_path, name) for name in os.listdir(folder_path)
-                   if os.path.isfile(os.path.join(folder_path, name))]
-
-    all_files = sorted(all_files, key=lambda x: int(os.path.basename(x).split('.')[0]))
-
-
-    if file_num > len(all_files):
-        raise ValueError("folder_num excesses the total folder number")
-
+    if data_mode != "puzzlefusion":
+        all_files = [os.path.join(folder_path, name) for name in os.listdir(folder_path)
+                    if (os.path.isfile(os.path.join(folder_path, name)) and (name[0]!="."))]
+        all_files = sorted(all_files, key=lambda x: int(os.path.basename(x).split('.')[0]))
+    else:
+        all_files = [os.path.join(folder_path, name) for name in os.listdir(folder_path)
+            if os.path.isdir(os.path.join(folder_path, name))]
+        all_files = sorted(all_files, key=lambda x: int(os.path.basename(x).split('/')[-1]))
+        
     start = range[0]
     end = range[1]+1
     if traversal_all:
         file_list = all_files
-
     else:
+        if file_num > len(all_files):
+            raise ValueError("folder_num excesses the total folder number")
         if (end-start<file_num):
             print("The file number excesses range.")
         else:
@@ -37,7 +38,6 @@ def select_model(folder_path, file_num, single_mode, random_draw, traversal_all,
 
     if random_draw:
         random.shuffle(file_list)
-
 
     return file_list
 
@@ -51,14 +51,27 @@ def random_color():
     colors.remove(selected_color)          # 从列表中删除该颜色
     return selected_color
 
-def read_json(json_file_path):
-    with open(json_file_path, 'r') as f:
-        data = json.load(f)
-    gt_trans_rots = np.array(data['gt_trans_rots'])
-    pred_trans_rots = np.array(data['pred_trans_rots'])
-    # init_pose = np.array(data['init_pose'])
-    init_pose = np.array([0,0,0,0,0,0,0])
-    model_path = data['name']
+def read_trans(trans_file_path, data_mode):
+    if data_mode != "puzzlefusion":
+        with open(trans_file_path, 'r') as f:
+            data = json.load(f)
+        gt_trans_rots = np.array(data['gt_trans_rots'])
+        pred_trans_rots = np.array(data['pred_trans_rots'])
+        # init_pose = np.array(data['init_pose'])
+        init_pose = np.array([0,0,0,0,0,0,0])
+        model_path = data['name']
+    else:
+        predict_pattern = "predict_*.npy"
+        # Find the first file that matches the predict pattern
+        predict_files = glob.glob(os.path.join(trans_file_path, predict_pattern))
+        predict_file_path = predict_files[0]
+        # Load the predict.npy file
+        pred_trans_rots = np.load(predict_file_path)
+        gt_trans_rots = np.load(f"{trans_file_path}/gt.npy")
+        init_pose = np.load(f"{trans_file_path}/init_pose.npy")
+        with open(f"{trans_file_path}/mesh_file_path.txt", 'r') as file:
+            model_path = file.read().strip()
+
     return gt_trans_rots, pred_trans_rots, init_pose, model_path
 
 def reset_scene():
@@ -246,7 +259,7 @@ def set_white_background():
     comp_links.new(white_color.outputs[0], alpha_over.inputs[1])   # White to upper layer
     comp_links.new(alpha_over.outputs[0], composite_output.inputs[0])  # Alpha over to composite
 
-def render_and_export(output_path, render = "EEVEE"):
+def render_and_export(output_path, render = "EEVEE", fast_mode = True):
     """Render the scene and export the image."""
     if render == "EEVEE":
         bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'  # Use Cycles rendering engine
@@ -271,7 +284,8 @@ def render_and_export(output_path, render = "EEVEE"):
 
     resolution = bpy.context.scene.render.resolution_y  # Use current width as the base
     bpy.context.scene.render.resolution_x = resolution  # Set height equal to width for square output
-
+    if fast_mode:
+        bpy.context.scene.render.resolution_percentage = 50
 
     bpy.context.scene.render.image_settings.file_format = 'PNG'
     bpy.context.scene.render.filepath = output_path
@@ -297,8 +311,8 @@ def save_video(imgs_path, video_path, frame):
 
     print(f"Video saved to {video_path}")
 
-def make_new_folder(output_folder, json_path):
-    file_name = os.path.splitext(os.path.basename(json_path))[0]
+def make_new_folder(output_folder, trans_path):
+    file_name = os.path.splitext(os.path.basename(trans_path))[0]
 
     # Create the new folder path
     new_folder_path = os.path.join(output_folder, "raw_data", file_name)
@@ -426,18 +440,23 @@ def add_trajectory(imported_objects, objects_location_com):
 
 
 
-def generate(json_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode):
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode):
     """Main function to orchestrate the process."""
-    gt_trans_rots, pred_trans_rots, init_pose, model_path = read_json(json_path)
+    gt_trans_rots, pred_trans_rots, init_pose, model_path = read_trans(trans_path, data_mode)
     if data_mode == "jigsaw":
         pred_trans_rots = pred_trans_rots[None, :]
     model_path = os.path.join(model_folder_path, model_path)
-    output_folder_sub, json_name = make_new_folder(output_folder, json_path)
+    output_folder_sub, trans_name = make_new_folder(output_folder, trans_path)
     output_folder_video = os.path.join(output_folder, "video")
     output_folder_preview = os.path.join(output_folder, "preview")
     os.makedirs(output_folder_video, exist_ok=True)
     os.makedirs(output_folder_preview, exist_ok=True)
-    shutil.copy2(json_path, output_folder_sub)
+    if data_mode != "puzzlefusion":
+        shutil.copy2(trans_path, output_folder_sub)
+    else:
+        shutil.copytree(trans_path, output_folder_sub, dirs_exist_ok=True)
+
+
 
     add_asset("material/pigeon_pastal.blend")
 
@@ -464,14 +483,6 @@ def generate(json_path, output_folder, model_folder_path, dotted_line, data_mode
     # Set background to white
     set_white_background()
 
-    # # Apply ground truth transformations
-    # for obj, gt_transform in zip(imported_objects, gt_trans_rots):
-    #     apply_final_transformation(obj, init_pose, gt_transform, [0, 0, 0, 0, 0, 0, 0])
-
-    # # Render initial state
-    # initial_output_path = os.path.join(output_folder, "0000.png")
-    # render_and_export(initial_output_path)
-
     frame =0
     num_obj = pred_trans_rots.shape[1]
     objects_location_com = [[]for _ in range(num_obj)]
@@ -488,16 +499,16 @@ def generate(json_path, output_folder, model_folder_path, dotted_line, data_mode
         if dotted_line:
             add_trajectory(imported_objects, objects_location_com)
         step_output_path = os.path.join(output_folder_sub, f"{step_idx:04d}.png")
-        render_and_export(step_output_path, "EEVEE")
+        render_and_export(step_output_path, "EEVEE", fast_mode = True)
         frame += 1
-    preview_output_path = os.path.join(output_folder_preview, f"{json_name}.png")
-    render_and_export(preview_output_path, "EEVEE")
+    preview_output_path = os.path.join(output_folder_preview, f"{trans_name}.png")
+    render_and_export(preview_output_path, "EEVEE", fast_mode = False)
     fill_colors()
-    save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{json_name}.mp4", frame= frame)
+    save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame)
 
     # Save the Blender file
     if not clean_mode:
-        blend_file_path = os.path.join(output_folder_sub, f"scene{json_name}.blend")
+        blend_file_path = os.path.join(output_folder_sub, f"scene{trans_name}.blend")
         save_blend_file(blend_file_path)
     else:
         # clean png data

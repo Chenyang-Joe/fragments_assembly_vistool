@@ -34,6 +34,8 @@ Open and edit the parameters in **`render_script.py`** as needed:
 - `range`             = `[0,7871]`
 - `file_num`          = `100`  
 - `data_mode`         = `mode name` 
+- `clean_mode`        = `True`
+
 
 ---
 

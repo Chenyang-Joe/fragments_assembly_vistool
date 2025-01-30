@@ -6,6 +6,7 @@ import subprocess
 from mathutils import Quaternion, Vector, Matrix
 import numpy as np
 import shutil
+import glob
 
 def select_model(folder_path, file_num, single_mode, random_draw, traversal_all, range):
     if single_mode:
@@ -425,7 +426,7 @@ def add_trajectory(imported_objects, objects_location_com):
 
 
 
-def generate(json_path, output_folder, model_folder_path, dotted_line, data_mode):
+def generate(json_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode):
     """Main function to orchestrate the process."""
     gt_trans_rots, pred_trans_rots, init_pose, model_path = read_json(json_path)
     if data_mode == "jigsaw":
@@ -495,8 +496,14 @@ def generate(json_path, output_folder, model_folder_path, dotted_line, data_mode
     save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{json_name}.mp4", frame= frame)
 
     # Save the Blender file
-    blend_file_path = os.path.join(output_folder_sub, f"scene{json_name}.blend")
-    save_blend_file(blend_file_path)
+    if not clean_mode:
+        blend_file_path = os.path.join(output_folder_sub, f"scene{json_name}.blend")
+        save_blend_file(blend_file_path)
+    else:
+        # clean png data
+        png_files = glob.glob(os.path.join(output_folder_sub, "*.png"))
+        for png_file in png_files:
+            os.remove(png_file)
 
 
 def add_asset(source_blend_path):

@@ -7,6 +7,7 @@ from mathutils import Quaternion, Vector, Matrix
 import numpy as np
 import shutil
 import glob
+import math
 
 def select_model(folder_path, file_num, single_mode, random_draw, traversal_all, range, data_mode):
     if single_mode:
@@ -51,7 +52,7 @@ def random_color():
     colors.remove(selected_color)          # 从列表中删除该颜色
     return selected_color
 
-def read_trans(trans_file_path, data_mode):
+def read_trans(trans_file_path, data_mode, gt_mode):
     if data_mode != "puzzlefusion":
         with open(trans_file_path, 'r') as f:
             data = json.load(f)
@@ -71,6 +72,11 @@ def read_trans(trans_file_path, data_mode):
         init_pose = np.load(f"{trans_file_path}/init_pose.npy")
         with open(f"{trans_file_path}/mesh_file_path.txt", 'r') as file:
             model_path = file.read().strip()
+
+    if gt_mode:
+        pred_trans_rots = pred_trans_rots[:1, :, :]*0
+        gt_trans_rots = gt_trans_rots*0
+        init_pose = init_pose*0
 
     return gt_trans_rots, pred_trans_rots, init_pose, model_path
 
@@ -285,7 +291,9 @@ def render_and_export(output_path, render = "EEVEE", fast_mode = True):
     resolution = bpy.context.scene.render.resolution_y  # Use current width as the base
     bpy.context.scene.render.resolution_x = resolution  # Set height equal to width for square output
     if fast_mode:
-        bpy.context.scene.render.resolution_percentage = 50
+        bpy.context.scene.render.resolution_percentage = 25
+    else:
+        bpy.context.scene.render.resolution_percentage = 100
 
     bpy.context.scene.render.image_settings.file_format = 'PNG'
     bpy.context.scene.render.filepath = output_path
@@ -440,9 +448,9 @@ def add_trajectory(imported_objects, objects_location_com):
 
 
 
-def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode):
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode):
     """Main function to orchestrate the process."""
-    gt_trans_rots, pred_trans_rots, init_pose, model_path = read_trans(trans_path, data_mode)
+    gt_trans_rots, pred_trans_rots, init_pose, model_path = read_trans(trans_path, data_mode, gt_mode)
     if data_mode == "jigsaw":
         pred_trans_rots = pred_trans_rots[None, :]
     model_path = os.path.join(model_folder_path, model_path)
@@ -496,6 +504,9 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             objects_location_com[obj_index].append(location_com)
             if (len(objects_location_com[obj_index])>1) and dotted_line:
                 create_uv_sphere(objects_location_com[obj_index][-2], obj, 0.01) # only plot the last position every time
+            if gt_mode:
+                rotation_matrix = Matrix.Rotation(math.radians(180), 4, 'X')
+                obj.matrix_world @= rotation_matrix
         if dotted_line:
             add_trajectory(imported_objects, objects_location_com)
         step_output_path = os.path.join(output_folder_sub, f"{step_idx:04d}.png")

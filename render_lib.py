@@ -8,6 +8,7 @@ import numpy as np
 import shutil
 import glob
 import math
+import h5py
 
 def select_model(folder_path, file_num, single_mode, random_draw, traversal_all, range, data_mode):
     if single_mode:
@@ -42,6 +43,34 @@ def select_model(folder_path, file_num, single_mode, random_draw, traversal_all,
 
     return file_list
 
+def read_removal_dict(removal_meta_file, removal_num, removal_mode, file_list, data_mode):
+    if not removal_mode:
+        return {}
+    
+    removal_dict = {}
+    with h5py.File(removal_meta_file, "r") as f:
+        for trans_file_path in file_list:
+            _,_,_, model_path = read_trans(trans_file_path, data_mode) # we only want model path for objct file name
+            removal_pieces_names = np.array(
+                [name.decode("utf-8") for name in f[model_path]["pieces_names"][:]]
+            )
+            removal_order = np.array(f[model_path]["removal_order"][:])
+            removal_pieces = set(removal_pieces_names[removal_order[: removal_num]])
+
+            removal_dict[model_path] = removal_pieces
+        f.close()
+    return removal_dict
+
+
+# def remove_parts(gt_trans_rots, pred_trans_rots ,model_path, removal_dict):
+    # removal_order = removal_dict[model_path]
+    # mask = np.isin(np.arange(gt_trans_rots.shape[0]), removal_order)  
+
+    # gt_trans_rots = gt_trans_rots[~mask]  
+    # pred_trans_rots = pred_trans_rots[:,~mask]  
+
+    # return gt_trans_rots, pred_trans_rots
+
 def random_color():
     global colors
     if not colors:
@@ -52,7 +81,15 @@ def random_color():
     colors.remove(selected_color)          # 从列表中删除该颜色
     return selected_color
 
-def read_trans(trans_file_path, data_mode, gt_mode):
+def check_empty(trans_file_path, data_mode):
+    if data_mode != "puzzlefusion":
+        with open(trans_file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            if not content.strip():  # If the file is an empty .json, ignore it
+                return True
+    return False
+
+def read_trans(trans_file_path, data_mode, gt_mode = False):
     if data_mode != "puzzlefusion":
         with open(trans_file_path, 'r') as f:
             data = json.load(f)
@@ -77,6 +114,8 @@ def read_trans(trans_file_path, data_mode, gt_mode):
         pred_trans_rots = pred_trans_rots[:1, :, :]*0
         gt_trans_rots = gt_trans_rots*0
         init_pose = init_pose*0
+
+
 
     return gt_trans_rots, pred_trans_rots, init_pose, model_path
 
@@ -115,10 +154,20 @@ def parse_obj(filepath):
 
     return vertices, faces
 
-def import_obj_files(folder_path):
+def import_obj_files(folder_path, removal_dict = None, model_path_half = ""):
     """Manually import all OBJ files from a given folder."""
-    obj_files = sorted([f for f in os.listdir(folder_path) if f.endswith('.obj')], key=lambda x: int(x.split('_')[-1].split('.')[0]))
+    obj_files_all = sorted([f for f in os.listdir(folder_path) if f.endswith('.obj')], key=lambda x: int(x.split('_')[-1].split('.')[0]))
+    l1 = len(obj_files_all)
+    if removal_dict:
+        removal_obj_names = removal_dict[model_path_half]
+        obj_files = [name for name in obj_files_all if name.split('.')[-2] not in removal_obj_names]
+    else:
+        obj_files = obj_files_all
+    l2 = len(obj_files)
+    print("len:",l1,l2)
+
     imported_objects = []
+
 
     for obj_file in obj_files:
         file_path = os.path.join(folder_path, obj_file)
@@ -448,12 +497,18 @@ def add_trajectory(imported_objects, objects_location_com):
 
 
 
-def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode):
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, removal_dict):
     """Main function to orchestrate the process."""
-    gt_trans_rots, pred_trans_rots, init_pose, model_path = read_trans(trans_path, data_mode, gt_mode)
+    if check_empty(trans_path, data_mode):
+        return
+    gt_trans_rots, pred_trans_rots, init_pose, model_path_half = read_trans(trans_path, data_mode, gt_mode)
+
+    # if removal_dict != {}:
+    #     gt_trans_rots, pred_trans_rots = remove_parts(gt_trans_rots, pred_trans_rots, model_path_half, removal_dict)
+
     if data_mode == "jigsaw":
         pred_trans_rots = pred_trans_rots[None, :]
-    model_path = os.path.join(model_folder_path, model_path)
+    model_path = os.path.join(model_folder_path, model_path_half)
     output_folder_sub, trans_name = make_new_folder(output_folder, trans_path)
     output_folder_video = os.path.join(output_folder, "video")
     output_folder_preview = os.path.join(output_folder, "preview")
@@ -464,8 +519,6 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     else:
         shutil.copytree(trans_path, output_folder_sub, dirs_exist_ok=True)
 
-
-
     add_asset("material/pigeon_pastal.blend")
 
     reset_scene()
@@ -474,7 +527,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     delete_default_objects()
 
     # Import all OBJ files
-    imported_objects = import_obj_files(model_path)
+    imported_objects = import_obj_files(model_path, removal_dict, model_path_half)
 
     # # Assign random colors to each object
     for obj in imported_objects:

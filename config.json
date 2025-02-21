@@ -1,0 +1,16 @@
+{
+    "trans_folder_path": "/Users/chenyangxu/Codebase/AI4CE/assembly/assembly_recording/flow_matching_trans/flow_matching_everyday_vol",
+    "model_folder_path": "/Users/chenyangxu/Codebase/AI4CE/assembly/breaking_bad_model",
+    "output_folder": "output",
+    "single_mode": false,
+    "traversal_all": false,
+    "random_draw": false,
+    "range": [0, 10],
+    "file_num": 10,
+    "dotted_line": false,
+    "data_mode": "flowmatching",
+    "clean_mode": true,
+    "gt_mode": false,
+    "preview_mode": true
+  }
+  

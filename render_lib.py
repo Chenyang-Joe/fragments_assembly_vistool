@@ -43,34 +43,6 @@ def select_model(folder_path, file_num, single_mode, random_draw, traversal_all,
 
     return file_list
 
-def read_removal_dict(removal_meta_file, removal_num, removal_mode, file_list, data_mode):
-    if not removal_mode:
-        return {}
-    
-    removal_dict = {}
-    with h5py.File(removal_meta_file, "r") as f:
-        for trans_file_path in file_list:
-            _,_,_, model_path,_ = read_trans(trans_file_path, data_mode) # we only want model path for objct file name
-            removal_pieces_names = np.array(
-                [name.decode("utf-8") for name in f[model_path]["pieces_names"][:]]
-            )
-            removal_order = np.array(f[model_path]["removal_order"][:])
-            removal_pieces = set(removal_pieces_names[removal_order[: removal_num]])
-
-            removal_dict[model_path] = removal_pieces
-        f.close()
-    return removal_dict
-
-
-# def remove_parts(gt_trans_rots, pred_trans_rots ,model_path, removal_dict):
-    # removal_order = removal_dict[model_path]
-    # mask = np.isin(np.arange(gt_trans_rots.shape[0]), removal_order)  
-
-    # gt_trans_rots = gt_trans_rots[~mask]  
-    # pred_trans_rots = pred_trans_rots[:,~mask]  
-
-    # return gt_trans_rots, pred_trans_rots
-
 def random_color():
     global colors
     if not colors:
@@ -91,6 +63,7 @@ def check_empty(trans_file_path, data_mode):
 
 def read_trans(trans_file_path, data_mode, gt_mode = False):
     redundant_path = ''
+    removal_name = ''
     if data_mode != "puzzlefusion":
         with open(trans_file_path, 'r') as f:
             data = json.load(f)
@@ -101,6 +74,8 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
         model_path = data['name']
         if 'redundant_pieces' in data.keys():
             redundant_path = data['redundant_pieces']
+        if 'removal_pieces' in data.keys():
+            removal_name = data['removal_pieces']
     else:
         predict_pattern = "predict_*.npy"
         # Find the first file that matches the predict pattern
@@ -120,7 +95,7 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
 
 
 
-    return gt_trans_rots, pred_trans_rots, init_pose, model_path, redundant_path
+    return gt_trans_rots, pred_trans_rots, init_pose, model_path, redundant_path, removal_name
 
 def reset_scene():
     """Reset the Blender scene by deleting all objects and clearing unused data."""
@@ -157,17 +132,17 @@ def parse_obj(filepath):
 
     return vertices, faces
 
-def import_obj_files(folder_path, model_folder_path, removal_dict = None, model_path_half = "", redundant_path = ''):
+def import_obj_files(folder_path, model_folder_path, redundant_path = None, removal_name = None):
     """Manually import all OBJ files from a given folder."""
     obj_files_all = sorted([f for f in os.listdir(folder_path) if f.endswith('.obj')], key=lambda x: int(x.split('_')[-1].split('.')[0]))
     l1 = len(obj_files_all)
-    if removal_dict:
-        removal_obj_names = removal_dict[model_path_half]
+    if removal_name:
+        removal_obj_names = removal_name.split(',')
         obj_files = [name for name in obj_files_all if name.split('.')[-2] not in removal_obj_names]
     else:
         obj_files = obj_files_all
     l2 = len(obj_files)
-    print("len:",l1,l2)
+    print("len before removal: ",l1," len after removal: ",l2)
 
     imported_objects = []
 
@@ -185,20 +160,20 @@ def import_obj_files(folder_path, model_folder_path, removal_dict = None, model_
         bpy.context.collection.objects.link(obj)
         imported_objects.append(obj)
 
-    redundant_lsit = redundant_path.split(',')
-    print(folder_path)
-    for obj_file in redundant_lsit:
-        file_path = os.path.join(model_folder_path, obj_file[:-3]+'_'+obj_file[-1]+'.obj')
-        vertices, faces = parse_obj(file_path)
+    if redundant_path:
+        redundant_list = redundant_path.split(',')
+        for obj_file in redundant_list:
+            file_path = os.path.join(model_folder_path, obj_file[:-3]+'_'+obj_file[-1]+'.obj')
+            vertices, faces = parse_obj(file_path)
 
-        # Create a new mesh and object in Blender
-        mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file}")
-        mesh.from_pydata(vertices, [], faces)
-        mesh.update()
+            # Create a new mesh and object in Blender
+            mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file}")
+            mesh.from_pydata(vertices, [], faces)
+            mesh.update()
 
-        obj = bpy.data.objects.new(name=f"Object_{obj_file}", object_data=mesh)
-        bpy.context.collection.objects.link(obj)
-        imported_objects.append(obj)
+            obj = bpy.data.objects.new(name=f"Object_{obj_file}", object_data=mesh)
+            bpy.context.collection.objects.link(obj)
+            imported_objects.append(obj)
 
     return imported_objects, origin_num
 
@@ -515,14 +490,11 @@ def add_trajectory(imported_objects, objects_location_com):
 
 
 
-def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, removal_dict):
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode):
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
-    gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path = read_trans(trans_path, data_mode, gt_mode)
-
-    # if removal_dict != {}:
-    #     gt_trans_rots, pred_trans_rots = remove_parts(gt_trans_rots, pred_trans_rots, model_path_half, removal_dict)
+    gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name = read_trans(trans_path, data_mode, gt_mode)
 
     if data_mode == "jigsaw":
         pred_trans_rots = pred_trans_rots[None, :]
@@ -530,7 +502,8 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     output_folder_sub, trans_name = make_new_folder(output_folder, trans_path)
     output_folder_video = os.path.join(output_folder, "video")
     output_folder_preview = os.path.join(output_folder, "preview")
-    os.makedirs(output_folder_video, exist_ok=True)
+    if not preview_mode:
+        os.makedirs(output_folder_video, exist_ok=True)
     os.makedirs(output_folder_preview, exist_ok=True)
     if data_mode != "puzzlefusion":
         shutil.copy2(trans_path, output_folder_sub)
@@ -545,8 +518,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     delete_default_objects()
 
     # Import all OBJ files
-    print(redundant_path)
-    imported_objects, origin_num = import_obj_files(model_path, model_folder_path,removal_dict, model_path_half, redundant_path)
+    imported_objects, origin_num = import_obj_files(model_path, model_folder_path, redundant_path, removal_name)
 
     # # Assign random colors to each object
     for idx, obj in enumerate(imported_objects):
@@ -584,12 +556,14 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
         if dotted_line:
             add_trajectory(imported_objects, objects_location_com)
         step_output_path = os.path.join(output_folder_sub, f"{step_idx:04d}.png")
-        render_and_export(step_output_path, "EEVEE", fast_mode = True)
+        if not preview_mode:
+            render_and_export(step_output_path, "EEVEE", fast_mode = True)
         frame += 1
     preview_output_path = os.path.join(output_folder_preview, f"{trans_name}.png")
     render_and_export(preview_output_path, "EEVEE", fast_mode = False)
     fill_colors()
-    save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame)
+    if not preview_mode:
+        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame)
 
     # Save the Blender file
     if not clean_mode:

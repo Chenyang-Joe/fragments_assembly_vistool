@@ -33,22 +33,25 @@
 
 ## Set Up Parameters
 
-Open and edit the parameters in **`render_script.py`** as needed:
+Open and edit the parameters in **`config.json`** as needed:
 
-- `json_folder_path` = `"path/to/transformation/folder"`
-- `model_folder_path` = `"path/to/model/folder"`
-- `output_folder`     = `"path/to/output/folder"`
-- `removal_meta_file` = `"path/to/removal/file"`
-- `removal_num` = `4`
-- `removal_mode` = `True`
-- `single_mode`       = `False # render a given file or multiple files in given folder`
-- `dotted_line`       = `True`  
-- `random_draw`       = `True`
-- `all_files`          = `True # traverse all files or files of the given range and given number`
-- `range`             = `[0,7871]`
-- `file_num`          = `100`  
-- `data_mode`         = `mode_name #"jigsaw", "puzzlefusion", "flowmatching"`
-- `clean_mode`        = `True`
+   ```bash
+   {
+      "trans_folder_path": "PATH",
+      "model_folder_path": "PATH",
+      "output_folder": "PATH",
+      "single_mode": false,
+      "traversal_all": false,
+      "random_draw": false,
+      "range": [0, 10],
+      "file_num": 10,
+      "dotted_line": false,
+      "data_mode": "flowmatching",
+      "clean_mode": true,
+      "gt_mode": false,
+      "preview_mode": true
+   }
+   ```
 
 
 ---

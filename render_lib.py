@@ -50,7 +50,7 @@ def read_removal_dict(removal_meta_file, removal_num, removal_mode, file_list, d
     removal_dict = {}
     with h5py.File(removal_meta_file, "r") as f:
         for trans_file_path in file_list:
-            _,_,_, model_path = read_trans(trans_file_path, data_mode) # we only want model path for objct file name
+            _,_,_, model_path,_ = read_trans(trans_file_path, data_mode) # we only want model path for objct file name
             removal_pieces_names = np.array(
                 [name.decode("utf-8") for name in f[model_path]["pieces_names"][:]]
             )
@@ -90,6 +90,7 @@ def check_empty(trans_file_path, data_mode):
     return False
 
 def read_trans(trans_file_path, data_mode, gt_mode = False):
+    redundant_path = ''
     if data_mode != "puzzlefusion":
         with open(trans_file_path, 'r') as f:
             data = json.load(f)
@@ -98,6 +99,8 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
         # init_pose = np.array(data['init_pose'])
         init_pose = np.array([0,0,0,0,0,0,0])
         model_path = data['name']
+        if 'redundant_pieces' in data.keys():
+            redundant_path = data['redundant_pieces']
     else:
         predict_pattern = "predict_*.npy"
         # Find the first file that matches the predict pattern
@@ -117,7 +120,7 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
 
 
 
-    return gt_trans_rots, pred_trans_rots, init_pose, model_path
+    return gt_trans_rots, pred_trans_rots, init_pose, model_path, redundant_path
 
 def reset_scene():
     """Reset the Blender scene by deleting all objects and clearing unused data."""
@@ -154,7 +157,7 @@ def parse_obj(filepath):
 
     return vertices, faces
 
-def import_obj_files(folder_path, removal_dict = None, model_path_half = ""):
+def import_obj_files(folder_path, model_folder_path, removal_dict = None, model_path_half = "", redundant_path = ''):
     """Manually import all OBJ files from a given folder."""
     obj_files_all = sorted([f for f in os.listdir(folder_path) if f.endswith('.obj')], key=lambda x: int(x.split('_')[-1].split('.')[0]))
     l1 = len(obj_files_all)
@@ -168,7 +171,7 @@ def import_obj_files(folder_path, removal_dict = None, model_path_half = ""):
 
     imported_objects = []
 
-
+    origin_num = len(obj_files)
     for obj_file in obj_files:
         file_path = os.path.join(folder_path, obj_file)
         vertices, faces = parse_obj(file_path)
@@ -182,7 +185,22 @@ def import_obj_files(folder_path, removal_dict = None, model_path_half = ""):
         bpy.context.collection.objects.link(obj)
         imported_objects.append(obj)
 
-    return imported_objects
+    redundant_lsit = redundant_path.split(',')
+    print(folder_path)
+    for obj_file in redundant_lsit:
+        file_path = os.path.join(model_folder_path, obj_file[:-3]+'_'+obj_file[-1]+'.obj')
+        vertices, faces = parse_obj(file_path)
+
+        # Create a new mesh and object in Blender
+        mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file}")
+        mesh.from_pydata(vertices, [], faces)
+        mesh.update()
+
+        obj = bpy.data.objects.new(name=f"Object_{obj_file}", object_data=mesh)
+        bpy.context.collection.objects.link(obj)
+        imported_objects.append(obj)
+
+    return imported_objects, origin_num
 
 def compute_final_transformation(init_pose, gt_transformation, transformation):
     """Compute the final transformation matrix based on the initial pose, ground truth, and current transformation."""
@@ -501,7 +519,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
-    gt_trans_rots, pred_trans_rots, init_pose, model_path_half = read_trans(trans_path, data_mode, gt_mode)
+    gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path = read_trans(trans_path, data_mode, gt_mode)
 
     # if removal_dict != {}:
     #     gt_trans_rots, pred_trans_rots = remove_parts(gt_trans_rots, pred_trans_rots, model_path_half, removal_dict)
@@ -527,13 +545,16 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     delete_default_objects()
 
     # Import all OBJ files
-    imported_objects = import_obj_files(model_path, removal_dict, model_path_half)
+    print(redundant_path)
+    imported_objects, origin_num = import_obj_files(model_path, model_folder_path,removal_dict, model_path_half, redundant_path)
 
     # # Assign random colors to each object
-    for obj in imported_objects:
+    for idx, obj in enumerate(imported_objects):
         # assign_random_color(obj)
-        adjust_material(obj, "Pigeon Blue pastel SWISS KRONO plastic", False)
-
+        if idx < origin_num:
+            adjust_material(obj, "Pigeon Blue pastel SWISS KRONO plastic", False, True)
+        else:
+            adjust_material(obj, "Pigeon Blue pastel SWISS KRONO plastic", False, False)
     # Set up light
     setup_light()
 
@@ -593,7 +614,7 @@ def add_asset(source_blend_path):
         
 
 
-def adjust_material(obj, material_name, use_asset):
+def adjust_material(obj, material_name, use_asset, main_part):
     mat = None
     if use_asset:
         asset_mat = bpy.data.materials.get(material_name)
@@ -622,7 +643,8 @@ def adjust_material(obj, material_name, use_asset):
 
     # Set random color and link the BSDF to Material Output
     # bsdf.inputs[0].default_value = (random.random(), random.random(), random.random(), 1)  # RGBA
-    bsdf.inputs[0].default_value = random_color()  # RGBA
+    if main_part:
+        bsdf.inputs[0].default_value = random_color()  # RGBA
     bsdf.inputs[2].default_value = 0.35
     output = mat.node_tree.nodes.get("Material Output")
     if not output:

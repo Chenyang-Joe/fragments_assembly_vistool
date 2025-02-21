@@ -7,20 +7,20 @@ sys.path.append(dir_path)
 from render_lib import *
 
 # Example usage
-trans_folder_path = "/Users/chenyangxu/Codebase/AI4CE/data_analysis/three_compare/scaling_random"
+trans_folder_path = "1.json"
 model_folder_path = "/Users/chenyangxu/Codebase/AI4CE/assembly/breaking_bad_model"
 output_folder = "output"
 removal_meta_file = "/Users/chenyangxu/Codebase/AI4CE/assembly/assembly_recodring_final/PuzzleFusion++/breaking_bad_vol_with_removal_keep_largest.hdf5" 
 removal_num = 4
 removal_mode = False
-single_mode = False
+single_mode = True
 traversal_all = True
 random_draw = False
 range = [0,10]
 file_num = 10
 dotted_line = False
 data_mode = "flowmatching" #"jigsaw", "puzzlefusion", "flowmatching"
-clean_mode = True
+clean_mode = False
 gt_mode = False
 
 

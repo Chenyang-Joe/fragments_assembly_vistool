@@ -1,16 +1,17 @@
 {
-    "trans_folder_path": "/Users/chenyangxu/Codebase/AI4CE/assembly/assembly_recording/flow_matching_trans/flow_matching_everyday_vol",
-    "model_folder_path": "/Users/chenyangxu/Codebase/AI4CE/assembly/breaking_bad_model",
+    "trans_folder_path": "/mnt/NAS/data/assembly/assembly_recording_final/jigsaw_logs_and_matching_data/jigsaw_eval/everyday_vol_missing_4/1.json",
+    "model_folder_path": "/mnt/NAS/home/sl10496/breaking_bad/volume",
     "output_folder": "output",
-    "single_mode": false,
-    "traversal_all": false,
+    "single_mode": true,
+    "traversal_all": true,
     "random_draw": false,
     "range": [0, 10],
     "file_num": 10,
     "dotted_line": false,
-    "data_mode": "flowmatching",
-    "clean_mode": true,
+    "data_mode": "jigsaw",
+    "clean_mode": false,
     "gt_mode": false,
-    "preview_mode": true
+    "preview_mode": false,
+    "rename": true
   }
   

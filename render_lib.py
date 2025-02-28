@@ -71,7 +71,7 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
         pred_trans_rots = np.array(data['pred_trans_rots'])
         # init_pose = np.array(data['init_pose'])
         init_pose = np.array([0,0,0,0,0,0,0])
-        model_path = data['name']
+        model_path_half = data['name']
         if 'redundant_pieces' in data.keys():
             redundant_path = data['redundant_pieces']
         if 'removal_pieces' in data.keys():
@@ -86,16 +86,14 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
         gt_trans_rots = np.load(f"{trans_file_path}/gt.npy")
         init_pose = np.load(f"{trans_file_path}/init_pose.npy")
         with open(f"{trans_file_path}/mesh_file_path.txt", 'r') as file:
-            model_path = file.read().strip()
+            model_path_half = file.read().strip()
 
     if gt_mode:
         pred_trans_rots = pred_trans_rots[:1, :, :]*0
         gt_trans_rots = gt_trans_rots*0
         init_pose = init_pose*0
 
-
-
-    return gt_trans_rots, pred_trans_rots, init_pose, model_path, redundant_path, removal_name
+    return gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name
 
 def reset_scene():
     """Reset the Blender scene by deleting all objects and clearing unused data."""
@@ -490,16 +488,22 @@ def add_trajectory(imported_objects, objects_location_com):
 
 
 
-def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode):
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, rename):
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
     gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name = read_trans(trans_path, data_mode, gt_mode)
 
+
+
+
     if data_mode == "jigsaw":
         pred_trans_rots = pred_trans_rots[None, :]
     model_path = os.path.join(model_folder_path, model_path_half)
     output_folder_sub, trans_name = make_new_folder(output_folder, trans_path)
+    if rename:
+        trans_name =trans_name + "-" + model_path_half.replace("/", "-")
+
     output_folder_video = os.path.join(output_folder, "video")
     output_folder_preview = os.path.join(output_folder, "preview")
     if not preview_mode:
@@ -567,7 +571,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
 
     # Save the Blender file
     if not clean_mode:
-        blend_file_path = os.path.join(output_folder_sub, f"scene{trans_name}.blend")
+        blend_file_path = os.path.join(output_folder_sub, f"{trans_name}.blend")
         save_blend_file(blend_file_path)
     else:
         # clean png data

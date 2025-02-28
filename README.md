@@ -49,7 +49,8 @@ Open and edit the parameters in **`config.json`** as needed:
       "data_mode": "flowmatching",
       "clean_mode": true,
       "gt_mode": false,
-      "preview_mode": true
+      "preview_mode": true,
+      "rename": true
    }
    ```
 

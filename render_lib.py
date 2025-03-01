@@ -8,7 +8,8 @@ import numpy as np
 import shutil
 import glob
 import math
-import h5py
+import time
+import gc
 
 def select_model(folder_path, file_num, single_mode, random_draw, traversal_all, range, data_mode):
     if single_mode:
@@ -97,12 +98,22 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
 
 def reset_scene():
     """Reset the Blender scene by deleting all objects and clearing unused data."""
+    # gc.collect()
+
     # Delete all objects in the scene
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete()
-
+    
     # Clear unused data blocks
     bpy.ops.outliner.orphans_purge(do_recursive=True)
+
+    # bpy.ops.ed.undo_reset()
+    # bpy.ops.ptcache.free_all()  
+    # bpy.ops.render.clear()      
+    # bpy.ops.wm.read_factory_settings(use_empty=True)
+
+
+
 
 
 def delete_default_objects():
@@ -161,7 +172,7 @@ def import_obj_files(folder_path, model_folder_path, redundant_path = None, remo
     if redundant_path:
         redundant_list = redundant_path.split(',')
         for obj_file in redundant_list:
-            file_path = os.path.join(model_folder_path, obj_file[:-3]+'_'+obj_file[-1]+'.obj')
+            file_path = os.path.join(model_folder_path, obj_file+'.obj')
             vertices, faces = parse_obj(file_path)
 
             # Create a new mesh and object in Blender
@@ -339,9 +350,9 @@ def render_and_export(output_path, render = "EEVEE", fast_mode = True):
     bpy.context.scene.render.filepath = output_path
     bpy.ops.render.render(write_still=True)
 
-def save_blend_file(filepath):
-    """Save the current Blender file."""
-    bpy.ops.wm.save_as_mainfile(filepath=filepath)
+# def save_blend_file(filepath):
+#     """Save the current Blender file."""
+#     bpy.ops.wm.save_as_mainfile(filepath=filepath)
 
 def save_video(imgs_path, video_path, frame):    
     # Compile frames into a video using FFmpeg
@@ -485,22 +496,42 @@ def add_trajectory(imported_objects, objects_location_com):
         for i, co in enumerate(coords):
             poly.points[i].co = (co.x, co.y, co.z, 1.0)
 
+# def check_folder(address, max_retries = 10, wait_time = 0.5):
+#     print(address)
+#     retries = 0
+#     while not os.path.exists(address) and retries < max_retries:
+#         print(f"Folder {address} does not exist yet. Retrying...")
+#         time.sleep(wait_time)  # Wait for a short time before retrying
+#         retries += 1
 
+def save_blend_file(blend_file_path, max_retries=1000, wait_time=0.5):
+    
+    retries = 0
+    while retries < max_retries:
+        try:
+            bpy.ops.wm.save_as_mainfile(filepath=blend_file_path)
+            print(f"File saved successfully: {blend_file_path}")
+            return  
+        except RuntimeError as e:
+            print(f"Error saving file {blend_file_path}: {e}")
+            print(f"Retrying... ({retries + 1}/{max_retries})")
+            retries += 1
+            time.sleep(wait_time)
+    
+    print(f"Failed to save file {blend_file_path} after {max_retries} retries.")
+    raise RuntimeError(f"Failed to save the file after {max_retries} retries")
 
 
 def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, rename):
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
+    output_folder_sub, trans_name = make_new_folder(output_folder, trans_path)
     gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name = read_trans(trans_path, data_mode, gt_mode)
-
-
-
 
     if data_mode == "jigsaw":
         pred_trans_rots = pred_trans_rots[None, :]
     model_path = os.path.join(model_folder_path, model_path_half)
-    output_folder_sub, trans_name = make_new_folder(output_folder, trans_path)
     if rename:
         trans_name =trans_name + "-" + model_path_half.replace("/", "-")
 
@@ -571,6 +602,13 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
 
     # Save the Blender file
     if not clean_mode:
+        retries = 0
+        max_retries = 10
+        wait_time = 0.5
+        while not os.path.exists(output_folder_sub) and retries < max_retries:
+            print(f"Folder {output_folder_sub} does not exist yet. Retrying...")
+            time.sleep(wait_time)  # Wait for a short time before retrying
+            retries += 1
         blend_file_path = os.path.join(output_folder_sub, f"{trans_name}.blend")
         save_blend_file(blend_file_path)
     else:

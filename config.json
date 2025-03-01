@@ -1,7 +1,7 @@
 {
-    "trans_folder_path": "tool/everyday_vol_redundant_4",
+    "trans_folder_path": "/mnt/NAS/data/assembly/assembly_recording_final/jigsaw_logs_and_matching_data/jigsaw_eval/artifact_vol_redundant_1",
     "model_folder_path": "/mnt/NAS/home/sl10496/breaking_bad/volume",
-    "output_folder": "/mnt/NAS/data/assembly/try",
+    "output_folder": "/mnt/NAS/data/assembly/assembly_vis_final/jigsaw_logs_and_matching_data/artifact_vol_redundant_1",
     "single_mode": false,
     "traversal_all": true,
     "random_draw": false,
@@ -9,7 +9,7 @@
     "file_num": 10,
     "dotted_line": false,
     "data_mode": "jigsaw",
-    "clean_mode": false,
+    "clean_mode": true,
     "gt_mode": false,
     "preview_mode": true,
     "rename": true

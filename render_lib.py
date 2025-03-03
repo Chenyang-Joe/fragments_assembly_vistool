@@ -370,8 +370,10 @@ def save_video(imgs_path, video_path, frame):
 
     print(f"Video saved to {video_path}")
 
-def make_new_folder(output_folder, trans_path):
+def make_new_folder(output_folder, trans_path, model_path_half, rename):
     file_name = os.path.splitext(os.path.basename(trans_path))[0]
+    if rename:
+        file_name =file_name + "-" + model_path_half.replace("/", "-")
 
     # Create the new folder path
     new_folder_path = os.path.join(output_folder, "raw_data", file_name)
@@ -526,14 +528,13 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
-    output_folder_sub, trans_name = make_new_folder(output_folder, trans_path)
     gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name = read_trans(trans_path, data_mode, gt_mode)
+    output_folder_sub, trans_name = make_new_folder(output_folder, trans_path, model_path_half, rename)
+
 
     if data_mode == "jigsaw":
         pred_trans_rots = pred_trans_rots[None, :]
     model_path = os.path.join(model_folder_path, model_path_half)
-    if rename:
-        trans_name =trans_name + "-" + model_path_half.replace("/", "-")
 
     output_folder_video = os.path.join(output_folder, "video")
     output_folder_preview = os.path.join(output_folder, "preview")
@@ -541,7 +542,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
         os.makedirs(output_folder_video, exist_ok=True)
     os.makedirs(output_folder_preview, exist_ok=True)
     if data_mode != "puzzlefusion":
-        shutil.copy2(trans_path, output_folder_sub)
+        shutil.copy2(trans_path, os.path.join(output_folder_sub,trans_name+".json"))
     else:
         shutil.copytree(trans_path, output_folder_sub, dirs_exist_ok=True)
 

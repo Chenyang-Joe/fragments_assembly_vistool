@@ -220,7 +220,13 @@ def import_obj_files(folder_path, model_folder_path, redundant_path = None, remo
         order_list = order_str.split(",")
         obj_files_all = [os.path.join(folder_path, f) for f in order_list]
     else:
-        obj_files_all = sorted([f for f in os.listdir(folder_path) if (f.endswith('.obj')or f.endswith('.ply'))], key=lambda x: int(x.split('_')[-1].split('.')[0]))
+        # obj_files_all = sorted([f for f in os.listdir(folder_path) if (f.endswith('.obj')or f.endswith('.ply'))], key=lambda x: int(x.split('_')[-1].split('.')[0]))
+        # Temporary solution
+        files = [f for f in os.listdir(folder_path) if f.endswith('.obj') or f.endswith('.ply')]
+        if all(f.split('_')[-1].split('.')[0].isdigit() for f in files):
+            obj_files_all = sorted(files, key=lambda x: int(x.split('_')[-1].split('.')[0]))
+        else:
+            obj_files_all = files
     
     l1 = len(obj_files_all)
     if removal_name:

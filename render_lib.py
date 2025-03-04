@@ -205,6 +205,14 @@ def adjust_geometry_center(obj_list):
         for obj in obj_list:
             obj.location -= weighted_average_center    
 
+def rotate_objects_z(objects, degree=1.0):
+    """Rotate the given objects about the global Z axis by the specified degree."""
+    angle_rad = math.radians(degree)
+    Rz = Matrix.Rotation(angle_rad, 4, 'Z')
+    for obj in objects:
+        obj.matrix_world = Rz @ obj.matrix_world
+    bpy.context.view_layer.update()
+
 
 def import_obj_files(folder_path, model_folder_path, redundant_path = None, removal_name = None, order_str = None):
     """Manually import all OBJ files from a given folder."""
@@ -493,11 +501,11 @@ def render_and_export(output_path, render = "EEVEE", fast_mode = True):
 #     """Save the current Blender file."""
 #     bpy.ops.wm.save_as_mainfile(filepath=filepath)
 
-def save_video(imgs_path, video_path, frame):    
+def save_video(imgs_path, video_path, frame,  time_per_pic = 8):    
     # Compile frames into a video using FFmpeg
     command = [
         'ffmpeg', 
-        '-framerate', f'{frame / 8}',  
+        '-framerate', f'{frame / time_per_pic}',  
         '-i', f'{imgs_path}/%04d.png',  # Adjust the pattern based on how your frames are named
         '-vf', 'tpad=stop_mode=clone:stop_duration=1',  # Hold the last frame for 2 seconds
         '-c:v', 'libx264', 
@@ -663,7 +671,7 @@ def save_blend_file(blend_file_path, max_retries=1000, wait_time=0.5):
     raise RuntimeError(f"Failed to save the file after {max_retries} retries")
 
 
-def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, rename):
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate, rename):
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
@@ -677,6 +685,8 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
 
     output_folder_video = os.path.join(output_folder, "video")
     output_folder_preview = os.path.join(output_folder, "preview")
+    if not preview_mode or preview_rotate:
+        os.makedirs(output_folder_video, exist_ok=True)
     os.makedirs(output_folder_preview, exist_ok=True)
     if data_mode != "puzzlefusion":
         shutil.copy2(trans_path, os.path.join(output_folder_sub,trans_name+".json"))
@@ -740,16 +750,21 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     fill_colors()
     if not preview_mode:
         save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame)
+    elif preview_rotate:
+        rotate = 20
+        degree = 360/rotate
+        for rot_i in range(rotate):
+            rotate_objects_z(imported_objects, degree)
+            step_output_path = os.path.join(output_folder_sub, f"{rot_i+1:04d}.png")
+            render_and_export(step_output_path, "EEVEE", fast_mode = False)
+        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame, time_per_pic = 8)
+
+
+
+
 
     # Save the Blender file
     if not clean_mode:
-        retries = 0
-        max_retries = 10
-        wait_time = 0.5
-        while not os.path.exists(output_folder_sub) and retries < max_retries:
-            print(f"Folder {output_folder_sub} does not exist yet. Retrying...")
-            time.sleep(wait_time)  # Wait for a short time before retrying
-            retries += 1
         blend_file_path = os.path.join(output_folder_sub, f"{trans_name}.blend")
         save_blend_file(blend_file_path)
     else:

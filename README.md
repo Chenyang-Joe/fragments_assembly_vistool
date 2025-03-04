@@ -50,6 +50,7 @@ Open and edit the parameters in **`config.json`** as needed:
       "clean_mode": true,
       "gt_mode": false,
       "preview_mode": true,
+      "preview_rotate": true,
       "rename": true
    }
    ```

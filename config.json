@@ -1,17 +1,18 @@
 {
-  "trans_folder_path": "/mnt/NAS/data/assembly/assembly_recording_final/real_data/jigsaw/0.json",
-  "model_folder_path": "/mnt/NAS/data/assembly/assembly_recording_final/real_data/model/",
-  "output_folder": "output",
-  "single_mode": true,
+  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/1_marking_vis/data/GARF",
+  "model_folder_path": "/mnt/NAS/data/assembly/last_week/1_marking_vis/data/real_data/",
+  "output_folder": "/mnt/NAS/data/assembly/last_week/1_marking_vis/vis/GARF",
+  "single_mode": false,
   "traversal_all": true,
   "random_draw": false,
   "range": [0, 10],
   "file_num": 10,
   "dotted_line": false,
-  "data_mode": "jigsaw",
-  "clean_mode": false,
+  "data_mode": "",
+  "clean_mode": true,
   "gt_mode": false,
   "preview_mode": true,
+  "preview_rotate": true,
   "rename": true
 }
 

@@ -135,18 +135,32 @@ def parse_obj(filepath):
     """Parse an OBJ file and extract vertices and faces."""
     vertices = []
     faces = []
+    vertex_colors = []
+
 
     with open(filepath, 'r') as file:
         for line in file:
             if line.startswith('v '):
                 parts = line.split()
                 vertices.append((float(parts[1]), float(parts[2]), float(parts[3])))
+                if len(parts) >=6:
+                    r = float(parts[4])
+                    g = float(parts[5])
+                    b = float(parts[6])
+                    vertex_colors.append((r, g, b))
+                else:
+                    vertex_colors = None
             elif line.startswith('f '):
                 parts = line.split()
                 face = [int(p.split('/')[0]) - 1 for p in parts[1:]]
                 faces.append(face)
 
-    return vertices, faces
+    vertex_0 = vertex_colors[0]
+    union_color = all(np.all(vertex == vertex_0) for vertex in vertex_colors)
+    if union_color:
+        vertex_colors = None
+
+    return vertices, faces, vertex_colors
 
 def rescale_objects(obj_list, scale_factor):
     rescaled_objects = []
@@ -160,6 +174,36 @@ def rescale_objects(obj_list, scale_factor):
         rescaled_objects.append(obj)
     
     return rescaled_objects
+
+
+def set_origin_to_geometry(obj):
+    bpy.ops.object.select_all(action='DESELECT')  
+    obj.select_set(True)  
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS', center='BOUNDS')
+
+def adjust_geometry_center(obj_list):
+    total_weighted_center = Vector((0.0, 0.0, 0.0))
+    total_volume = 0.0
+    
+    for obj in obj_list:
+        set_origin_to_geometry(obj)
+        
+        if obj.bound_box:
+            min_corner = Vector(obj.bound_box[0])
+            max_corner = Vector(obj.bound_box[6])
+            dimensions = max_corner - min_corner
+            volume = dimensions.x * dimensions.y * dimensions.z
+            
+            center = obj.location
+            total_weighted_center += center * volume
+            total_volume += volume
+    
+    if total_volume > 0:
+        weighted_average_center = total_weighted_center / total_volume
+        
+        for obj in obj_list:
+            obj.location -= weighted_average_center    
 
 
 def import_obj_files(folder_path, model_folder_path, redundant_path = None, removal_name = None, order_str = None):
@@ -184,18 +228,49 @@ def import_obj_files(folder_path, model_folder_path, redundant_path = None, remo
     origin_num = len(obj_files)
     for obj_file in obj_files:
         file_path = os.path.join(folder_path, obj_file)
+        vertex_colors = None  
+
         if file_path.lower().endswith(".obj"):  # check whether it is obj or ply
-            vertices, faces = parse_obj(file_path)
+            vertices, faces, vertex_colors = parse_obj(file_path)
         else:
             mesh_data = trimesh.load_mesh(file_path)
             vertices = mesh_data.vertices.tolist()
             faces = mesh_data.faces.tolist()
+            try:
+                vc = mesh_data.visual.vertex_colors
+                if vc is not None and len(vc) == len(vertices):
+                    color_0 = vc[0]
+                    union_color = all(np.all(color == color_0) for color in vc)
+                    if union_color:
+                        vertex_colors = None
+                    else:
+                        vertex_colors = [tuple(c/255 for c in color) for color in vc]
+                else:
+                    vertex_colors = None
+            except Exception as e:
+                vertex_colors = None
+                print(e)
+
 
 
         # Create a new mesh and object in Blender
         mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file.split('/')[-1]}")
         mesh.from_pydata(vertices, [], faces)
         mesh.update()
+        if vertex_colors is not None and len(vertex_colors) == len(vertices):
+            if hasattr(mesh, "color_attributes"):
+                color_layer = mesh.color_attributes.new(name="Col", domain="CORNER", type="FLOAT_COLOR")
+            else:
+                color_layer = mesh.vertex_colors.new(name="Col")
+            for poly in mesh.polygons:
+                for loop_index in poly.loop_indices:
+                    vertex_index = mesh.loops[loop_index].vertex_index
+                    color = vertex_colors[vertex_index]
+                    if len(color) == 3:
+                        color = (color[0], color[1], color[2], 1.0)
+                    color_layer.data[loop_index].color = color
+
+
 
         obj = bpy.data.objects.new(name=f"Object_{obj_file.split('/')[-1]}", object_data=mesh)
         bpy.context.collection.objects.link(obj)
@@ -207,15 +282,42 @@ def import_obj_files(folder_path, model_folder_path, redundant_path = None, remo
         for obj_file in redundant_list:
             file_path = os.path.join(model_folder_path, obj_file+'.obj')
             if file_path.lower().endswith(".obj"):  # check whether it is obj or ply
-                vertices, faces = parse_obj(file_path)
+                vertices, faces, vertex_colors = parse_obj(file_path)
             else:
                 mesh_data = trimesh.load_mesh(file_path)
                 vertices = mesh_data.vertices.tolist()
                 faces = mesh_data.faces.tolist()
+                try:
+                    vc = mesh_data.visual.vertex_colors
+                    if vc is not None and len(vc) == len(vertices):
+                        color_0 = vc[0]
+                        union_color = all(np.all(color == color_0) for color in vc)
+                        if union_color:
+                            vertex_colors = None
+                        else:
+                            vertex_colors = [tuple(c/255 for c in color) for color in vc]
+                    else:
+                        vertex_colors = None
+                except Exception as e:
+                    vertex_colors = None
+                    print(e)
             # Create a new mesh and object in Blender
             mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file.split('/')[-1]}")
             mesh.from_pydata(vertices, [], faces)
             mesh.update()
+
+            if vertex_colors is not None and len(vertex_colors) == len(vertices):
+                if hasattr(mesh, "color_attributes"):
+                    color_layer = mesh.color_attributes.new(name="Col", domain="CORNER", type="FLOAT_COLOR")
+                else:
+                    color_layer = mesh.vertex_colors.new(name="Col")
+                for poly in mesh.polygons:
+                    for loop_index in poly.loop_indices:
+                        vertex_index = mesh.loops[loop_index].vertex_index
+                        color = vertex_colors[vertex_index]
+                        if len(color) == 3:
+                            color = (color[0], color[1], color[2], 1.0)
+                        color_layer.data[loop_index].color = color
 
             obj = bpy.data.objects.new(name=f"Object_{obj_file.split('/')[-1]}", object_data=mesh)
             bpy.context.collection.objects.link(obj)
@@ -575,8 +677,6 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
 
     output_folder_video = os.path.join(output_folder, "video")
     output_folder_preview = os.path.join(output_folder, "preview")
-    if not preview_mode:
-        os.makedirs(output_folder_video, exist_ok=True)
     os.makedirs(output_folder_preview, exist_ok=True)
     if data_mode != "puzzlefusion":
         shutil.copy2(trans_path, os.path.join(output_folder_sub,trans_name+".json"))
@@ -635,6 +735,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             render_and_export(step_output_path, "EEVEE", fast_mode = True)
         frame += 1
     preview_output_path = os.path.join(output_folder_preview, f"{trans_name}.png")
+    adjust_geometry_center(imported_objects)
     render_and_export(preview_output_path, "EEVEE", fast_mode = False)
     fill_colors()
     if not preview_mode:
@@ -671,6 +772,30 @@ def add_asset(source_blend_path):
 
 
 def adjust_material(obj, material_name, use_asset, main_part):
+    # if texture is provided, use texture.
+    color_attr_names = [attr.name for attr in obj.data.color_attributes] # select "Col"
+    if "Col" in color_attr_names:
+        mat = bpy.data.materials.new(name="NewMaterialWithVertexColor")
+        mat.use_nodes = True
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+
+        vc_node = nodes.new(type="ShaderNodeVertexColor")
+        vc_node.name = "Color Attribute"
+        vc_node.layer_name = "Col"
+
+        principled_bsdf = nodes.get("Principled BSDF")
+        links.new(vc_node.outputs["Color"], principled_bsdf.inputs["Base Color"])
+
+        if obj.data.materials:
+            obj.data.materials[0] = mat
+        else:
+            obj.data.materials.append(mat)
+        return
+    
+    
+
+    # else, just apply color set.
     mat = None
     if use_asset:
         asset_mat = bpy.data.materials.get(material_name)

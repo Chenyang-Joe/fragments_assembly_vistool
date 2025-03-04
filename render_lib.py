@@ -469,6 +469,15 @@ def render_and_export(output_path, render = "EEVEE", fast_mode = True):
     if render == "EEVEE":
         bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'  # Use Cycles rendering engine
         # Eevee does not use device settings like Cycles  # Use CPU rendering to avoid Metal issues
+
+        bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
+        bpy.context.preferences.addons['cycles'].preferences.get_devices()
+        for device in bpy.context.preferences.addons['cycles'].preferences.devices:
+            if device.type == 'CUDA':
+                device.use = True
+        bpy.context.scene.cycles.device = 'GPU'
+        bpy.context.scene.cycles.samples = 1024  
+    
     elif render == "CYCLES":
         bpy.context.scene.render.engine = 'CYCLES'
         bpy.context.scene.cycles.device = 'CPU'

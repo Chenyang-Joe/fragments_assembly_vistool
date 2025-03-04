@@ -18,16 +18,16 @@
    conda install -c conda-forge ffmpeg
    ```
 
-5. **Install `hp5y` (optional for removal)**
-   `hp5y` must be installed in python env concluded in blender. Find blender python env first
+5. **Install `trimesh` (optional for removal)**
+   `trimesh` must be installed in python env concluded in blender. Find blender python env first
    ```bash
    blender --background --python-expr "import sys; print(sys.executable)"   
    ```
-   install hp5y 
+   install trimesh 
    ```
    /python/path/example/python/bin/python3.11 -m ensurepip  
-   /python/path/example/python/bin/python3.11 -m pip install h5py
-   blender --background --python-expr "import h5py; print(h5py.__version__)"      
+   /python/path/example/python/bin/python3.11 -m pip install trimesh
+   blender --background --python-expr "import trimesh; print(trimesh.__version__)"      
    ```
 ---
 

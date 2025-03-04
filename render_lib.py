@@ -9,7 +9,8 @@ import shutil
 import glob
 import math
 import time
-import gc
+import trimesh
+
 
 def select_model(folder_path, file_num, single_mode, random_draw, traversal_all, range, data_mode):
     if single_mode:
@@ -63,8 +64,10 @@ def check_empty(trans_file_path, data_mode):
     return False
 
 def read_trans(trans_file_path, data_mode, gt_mode = False):
-    redundant_path = ''
-    removal_name = ''
+    redundant_path = None
+    removal_name = None
+    order_str = None
+    scale_factor = 1
     if data_mode != "puzzlefusion":
         with open(trans_file_path, 'r') as f:
             data = json.load(f)
@@ -77,6 +80,10 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
             redundant_path = data['redundant_pieces']
         if 'removal_pieces' in data.keys():
             removal_name = data['removal_pieces']
+        if 'pieces' in data.keys():
+            order_str = data['pieces']
+        if 'mesh_scale' in data.keys():
+            scale_factor = 1/data['mesh_scale']
     else:
         predict_pattern = "predict_*.npy"
         # Find the first file that matches the predict pattern
@@ -94,7 +101,7 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
         gt_trans_rots = gt_trans_rots*0
         init_pose = init_pose*0
 
-    return gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name
+    return gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name, order_str, scale_factor
 
 def reset_scene():
     """Reset the Blender scene by deleting all objects and clearing unused data."""
@@ -141,9 +148,28 @@ def parse_obj(filepath):
 
     return vertices, faces
 
-def import_obj_files(folder_path, model_folder_path, redundant_path = None, removal_name = None):
+def rescale_objects(obj_list, scale_factor):
+    rescaled_objects = []
+
+    for obj in obj_list:
+        obj.scale = (scale_factor, scale_factor, scale_factor)
+
+        # world_matrix = obj.matrix_world.copy()
+        # world_matrix = world_matrix.Scale(scale_factor, 4)  # 4 means scaling in 4 dimensions, for 3D objects
+        # obj.matrix_world = world_matrix
+        rescaled_objects.append(obj)
+    
+    return rescaled_objects
+
+
+def import_obj_files(folder_path, model_folder_path, redundant_path = None, removal_name = None, order_str = None):
     """Manually import all OBJ files from a given folder."""
-    obj_files_all = sorted([f for f in os.listdir(folder_path) if f.endswith('.obj')], key=lambda x: int(x.split('_')[-1].split('.')[0]))
+    if order_str:
+        order_list = order_str.split(",")
+        obj_files_all = [os.path.join(folder_path, f) for f in order_list]
+    else:
+        obj_files_all = sorted([f for f in os.listdir(folder_path) if (f.endswith('.obj')or f.endswith('.ply'))], key=lambda x: int(x.split('_')[-1].split('.')[0]))
+    
     l1 = len(obj_files_all)
     if removal_name:
         removal_obj_names = removal_name.split(',')
@@ -158,29 +184,40 @@ def import_obj_files(folder_path, model_folder_path, redundant_path = None, remo
     origin_num = len(obj_files)
     for obj_file in obj_files:
         file_path = os.path.join(folder_path, obj_file)
-        vertices, faces = parse_obj(file_path)
+        if file_path.lower().endswith(".obj"):  # check whether it is obj or ply
+            vertices, faces = parse_obj(file_path)
+        else:
+            mesh_data = trimesh.load_mesh(file_path)
+            vertices = mesh_data.vertices.tolist()
+            faces = mesh_data.faces.tolist()
+
 
         # Create a new mesh and object in Blender
-        mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file}")
+        mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file.split('/')[-1]}")
         mesh.from_pydata(vertices, [], faces)
         mesh.update()
 
-        obj = bpy.data.objects.new(name=f"Object_{obj_file}", object_data=mesh)
+        obj = bpy.data.objects.new(name=f"Object_{obj_file.split('/')[-1]}", object_data=mesh)
         bpy.context.collection.objects.link(obj)
+
         imported_objects.append(obj)
 
     if redundant_path:
         redundant_list = redundant_path.split(',')
         for obj_file in redundant_list:
             file_path = os.path.join(model_folder_path, obj_file+'.obj')
-            vertices, faces = parse_obj(file_path)
-
+            if file_path.lower().endswith(".obj"):  # check whether it is obj or ply
+                vertices, faces = parse_obj(file_path)
+            else:
+                mesh_data = trimesh.load_mesh(file_path)
+                vertices = mesh_data.vertices.tolist()
+                faces = mesh_data.faces.tolist()
             # Create a new mesh and object in Blender
-            mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file}")
+            mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file.split('/')[-1]}")
             mesh.from_pydata(vertices, [], faces)
             mesh.update()
 
-            obj = bpy.data.objects.new(name=f"Object_{obj_file}", object_data=mesh)
+            obj = bpy.data.objects.new(name=f"Object_{obj_file.split('/')[-1]}", object_data=mesh)
             bpy.context.collection.objects.link(obj)
             imported_objects.append(obj)
 
@@ -528,7 +565,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
-    gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name = read_trans(trans_path, data_mode, gt_mode)
+    gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name, order_str, scale_factor = read_trans(trans_path, data_mode, gt_mode)
     output_folder_sub, trans_name = make_new_folder(output_folder, trans_path, model_path_half, rename)
 
 
@@ -554,7 +591,9 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     delete_default_objects()
 
     # Import all OBJ files
-    imported_objects, origin_num = import_obj_files(model_path, model_folder_path, redundant_path, removal_name)
+    imported_objects, origin_num = import_obj_files(model_path, model_folder_path, redundant_path, removal_name, order_str)
+
+    imported_objects = rescale_objects(imported_objects, scale_factor)
 
     # # Assign random colors to each object
     for idx, obj in enumerate(imported_objects):

@@ -1,20 +1,20 @@
 {
-  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/1_marking_vis/data/pfpp/17.json",
-  "model_folder_path": "/mnt/NAS/data/assembly/last_week/1_marking_vis/data/real_data/",
-  "output_folder": "output",
-  "single_mode": true,
+  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/breakingbad_fantastic/pfpp/everyday",
+  "model_folder_path": "/mnt/NAS/home/sl10496/breaking_bad/volume",
+  "output_folder": "/mnt/NAS/data/assembly/last_week/vis/breaking_bad/pfpp/everyday",
+  "single_mode": false,
   "traversal_all": true,
   "random_draw": false,
   "range": [0, 10],
   "file_num": 10,
   "dotted_line": false,
   "data_mode": "",
-  "clean_mode": false,
+  "clean_mode": true,
   "gt_mode": false,
   "preview_mode": true,
   "preview_rotate": false,
   "rename": true,
-  "force_painting": false,
-  "min_num": 4
+  "force_painting": true,
+  "min_num": 5
 }
 

@@ -730,7 +730,8 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             render_and_export(step_output_path, "EEVEE", fast_mode = True)
         frame += 1
     preview_output_path = os.path.join(output_folder_preview, f"{trans_name}.png")
-    adjust_geometry_center(imported_objects)
+    if preview_mode:
+        adjust_geometry_center(imported_objects)
     render_and_export(preview_output_path, "EEVEE", fast_mode = False)
     fill_colors()
     if not preview_mode:

@@ -1,7 +1,7 @@
 {
-  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/breakingbad_fantastic/pfpp/everyday",
+  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/breakingbad_fantastic/GARF/everyday_missing_1/version_0/epoch-0/json_results",
   "model_folder_path": "/mnt/NAS/home/sl10496/breaking_bad/volume",
-  "output_folder": "/mnt/NAS/data/assembly/last_week/vis/breaking_bad/pfpp/everyday",
+  "output_folder": "/mnt/NAS/data/assembly/last_week/vis/breaking_bad/GARF/everyday_vol_missing_1",
   "single_mode": false,
   "traversal_all": true,
   "random_draw": false,

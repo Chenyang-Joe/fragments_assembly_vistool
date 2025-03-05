@@ -289,7 +289,10 @@ def import_obj_files(folder_path, model_folder_path, force_painting, redundant_p
     l1 = len(obj_files_all)
     if removal_name:
         removal_obj_names = removal_name.split(',')
-        obj_files = [name for name in obj_files_all if name.split('.')[-2] not in removal_obj_names]
+        if len(removal_obj_names[0].split('.'))>1:  
+            obj_files = [name for name in obj_files_all if name.split('.')[-2] not in removal_obj_names]
+        else:
+            obj_files = [name for name in obj_files_all if name not in removal_obj_names]
     else:
         obj_files = obj_files_all
     l2 = len(obj_files)

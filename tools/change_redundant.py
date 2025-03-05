@@ -2,7 +2,7 @@ import os
 import json
 import h5py
 
-folder = "/mnt/NAS/data/assembly/assembly_recording_final/pfpp_final/everyday_vol_redundant_3"
+folder = "/mnt/NAS/data/assembly/last_week/dataset/breakingbad_fantastic/pfpp/artifact_vol_redundant_4"
 folder_list = os.listdir(folder)
 h_file = "/mnt/NAS/data/assembly/hdf5/breaking_bad_vol.hdf5"
 

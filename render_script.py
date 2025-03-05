@@ -27,10 +27,12 @@ gt_mode = config["gt_mode"]
 preview_mode = config["preview_mode"]
 rename = config["rename"]
 preview_rotate = config["preview_rotate"]
+force_painting = config["force_painting"]
+min_num = config["min_num"]
 
 
 if __name__ == "__main__":
     file_list = select_model(trans_folder_path, file_num, single_mode, random_draw, traversal_all, range, data_mode)
     for trans_path in file_list:
-        generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate,rename)
+        generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate,rename, force_painting, min_num)
 

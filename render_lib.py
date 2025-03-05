@@ -131,19 +131,18 @@ def delete_default_objects():
             obj.select_set(True)
     bpy.ops.object.delete()
 
-def parse_obj(filepath):
+def parse_obj(filepath, force_painting):
     """Parse an OBJ file and extract vertices and faces."""
     vertices = []
     faces = []
     vertex_colors = []
-
 
     with open(filepath, 'r') as file:
         for line in file:
             if line.startswith('v '):
                 parts = line.split()
                 vertices.append((float(parts[1]), float(parts[2]), float(parts[3])))
-                if len(parts) >=6:
+                if len(parts) >=6 and (not force_painting):
                     r = float(parts[4])
                     g = float(parts[5])
                     b = float(parts[6])
@@ -155,12 +154,75 @@ def parse_obj(filepath):
                 face = [int(p.split('/')[0]) - 1 for p in parts[1:]]
                 faces.append(face)
 
-    vertex_0 = vertex_colors[0]
-    union_color = all(np.all(vertex == vertex_0) for vertex in vertex_colors)
-    if union_color:
-        vertex_colors = None
+    if vertex_colors:
+        vertex_0 = vertex_colors[0]
+        union_color = all(np.all(vertex == vertex_0) for vertex in vertex_colors)
+        if union_color:
+            vertex_colors = None
 
     return vertices, faces, vertex_colors
+
+def parse_ply(file_path, force_painting):
+    mesh_data = trimesh.load_mesh(file_path)
+    vertices = mesh_data.vertices.tolist()
+    faces = mesh_data.faces.tolist()
+    try:
+        vc = mesh_data.visual.vertex_colors
+        if vc is not None and len(vc) == len(vertices) and (not force_painting):
+            color_0 = vc[0]
+            union_color = all(np.all(color == color_0) for color in vc)
+            if union_color:
+                vertex_colors = None # all vertices use the same color, which provides no texture info
+            else:
+                vertex_colors = [tuple(c/255 for c in color) for color in vc]
+        else:
+            vertex_colors = None # not all vertices has color
+    except Exception as e:
+        vertex_colors = None
+        print(e)
+    return vertices, faces, vertex_colors
+
+
+
+def create_final_object_list(obj_list, force_painting, folder_path = None):
+    imported_objects = []
+    VFC_list = []
+    for obj_file in obj_list:
+        if os.path.exists(os.path.join(folder_path, obj_file)):
+            file_path = os.path.join(folder_path, obj_file)
+        elif os.path.exists(os.path.join(folder_path, obj_file+'.obj')):
+            file_path = os.path.join(folder_path, obj_file+'.obj')
+        elif os.path.exists(os.path.join(folder_path, obj_file+'.ply')):
+            file_path = os.path.join(folder_path, obj_file+'.ply')
+        else:
+            print("cannot recognise path", os.path.join(folder_path, obj_file))
+
+        if file_path.lower().endswith(".obj"):  # check whether it is obj or ply
+            vertices, faces, vertex_colors = parse_obj(file_path, force_painting)
+        else:
+            vertices, faces, vertex_colors = parse_ply(file_path, force_painting)
+        VFC_list.append([vertices, faces, vertex_colors])
+
+    for [vertices, faces, vertex_colors], obj in zip(VFC_list, obj_list):
+        # Create a new mesh and object in Blender
+        mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file.split('/')[-1]}")
+        mesh.from_pydata(vertices, [], faces)
+        mesh.update()
+
+        if vertex_colors is not None and len(vertex_colors) == len(vertices):
+            color_layer = mesh.color_attributes.new(name="Col", domain="CORNER", type="FLOAT_COLOR")
+            for poly in mesh.polygons:
+                for loop_index in poly.loop_indices:
+                    vertex_index = mesh.loops[loop_index].vertex_index
+                    color = vertex_colors[vertex_index]
+                    if len(color) == 3:
+                        color = (color[0], color[1], color[2], 1.0)
+                    color_layer.data[loop_index].color = color
+
+        obj = bpy.data.objects.new(name=f"Object_{obj_file.split('/')[-1]}", object_data=mesh)
+        bpy.context.collection.objects.link(obj)
+        imported_objects.append(obj)
+    return imported_objects
 
 def rescale_objects(obj_list, scale_factor):
     rescaled_objects = []
@@ -214,15 +276,16 @@ def rotate_objects_z(objects, degree=1.0):
     bpy.context.view_layer.update()
 
 
-def import_obj_files(folder_path, model_folder_path, redundant_path = None, removal_name = None, order_str = None):
+def import_obj_files(folder_path, model_folder_path, force_painting, redundant_path = None, removal_name = None, order_str = None,):
     """Manually import all OBJ files from a given folder."""
+    # read all obj as a list
     if order_str:
         order_list = order_str.split(",")
-        obj_files_all = [os.path.join(folder_path, f) for f in order_list]
+        obj_files_all = [ f for f in order_list]
     else:
         obj_files_all = sorted([f for f in os.listdir(folder_path) if (f.endswith('.obj')or f.endswith('.ply'))], key=lambda x: int(x.split('_')[-1].split('.')[0]))
 
-    
+    # remove missing part
     l1 = len(obj_files_all)
     if removal_name:
         removal_obj_names = removal_name.split(',')
@@ -235,102 +298,12 @@ def import_obj_files(folder_path, model_folder_path, redundant_path = None, remo
     imported_objects = []
 
     origin_num = len(obj_files)
-    for obj_file in obj_files:
-        file_path = os.path.join(folder_path, obj_file)
-        vertex_colors = None  
+    imported_objects = create_final_object_list(obj_files, force_painting, folder_path)
 
-        if file_path.lower().endswith(".obj"):  # check whether it is obj or ply
-            vertices, faces, vertex_colors = parse_obj(file_path)
-        else:
-            mesh_data = trimesh.load_mesh(file_path)
-            vertices = mesh_data.vertices.tolist()
-            faces = mesh_data.faces.tolist()
-            try:
-                vc = mesh_data.visual.vertex_colors
-                if vc is not None and len(vc) == len(vertices):
-                    color_0 = vc[0]
-                    union_color = all(np.all(color == color_0) for color in vc)
-                    if union_color:
-                        vertex_colors = None
-                    else:
-                        vertex_colors = [tuple(c/255 for c in color) for color in vc]
-                else:
-                    vertex_colors = None
-            except Exception as e:
-                vertex_colors = None
-                print(e)
-
-
-
-        # Create a new mesh and object in Blender
-        mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file.split('/')[-1]}")
-        mesh.from_pydata(vertices, [], faces)
-        mesh.update()
-        if vertex_colors is not None and len(vertex_colors) == len(vertices):
-            if hasattr(mesh, "color_attributes"):
-                color_layer = mesh.color_attributes.new(name="Col", domain="CORNER", type="FLOAT_COLOR")
-            else:
-                color_layer = mesh.vertex_colors.new(name="Col")
-            for poly in mesh.polygons:
-                for loop_index in poly.loop_indices:
-                    vertex_index = mesh.loops[loop_index].vertex_index
-                    color = vertex_colors[vertex_index]
-                    if len(color) == 3:
-                        color = (color[0], color[1], color[2], 1.0)
-                    color_layer.data[loop_index].color = color
-
-
-
-        obj = bpy.data.objects.new(name=f"Object_{obj_file.split('/')[-1]}", object_data=mesh)
-        bpy.context.collection.objects.link(obj)
-
-        imported_objects.append(obj)
 
     if redundant_path:
         redundant_list = redundant_path.split(',')
-        for obj_file in redundant_list:
-            file_path = os.path.join(model_folder_path, obj_file+'.obj')
-            if file_path.lower().endswith(".obj"):  # check whether it is obj or ply
-                vertices, faces, vertex_colors = parse_obj(file_path)
-            else:
-                mesh_data = trimesh.load_mesh(file_path)
-                vertices = mesh_data.vertices.tolist()
-                faces = mesh_data.faces.tolist()
-                try:
-                    vc = mesh_data.visual.vertex_colors
-                    if vc is not None and len(vc) == len(vertices):
-                        color_0 = vc[0]
-                        union_color = all(np.all(color == color_0) for color in vc)
-                        if union_color:
-                            vertex_colors = None
-                        else:
-                            vertex_colors = [tuple(c/255 for c in color) for color in vc]
-                    else:
-                        vertex_colors = None
-                except Exception as e:
-                    vertex_colors = None
-                    print(e)
-            # Create a new mesh and object in Blender
-            mesh = bpy.data.meshes.new(name=f"Mesh_{obj_file.split('/')[-1]}")
-            mesh.from_pydata(vertices, [], faces)
-            mesh.update()
-
-            if vertex_colors is not None and len(vertex_colors) == len(vertices):
-                if hasattr(mesh, "color_attributes"):
-                    color_layer = mesh.color_attributes.new(name="Col", domain="CORNER", type="FLOAT_COLOR")
-                else:
-                    color_layer = mesh.vertex_colors.new(name="Col")
-                for poly in mesh.polygons:
-                    for loop_index in poly.loop_indices:
-                        vertex_index = mesh.loops[loop_index].vertex_index
-                        color = vertex_colors[vertex_index]
-                        if len(color) == 3:
-                            color = (color[0], color[1], color[2], 1.0)
-                        color_layer.data[loop_index].color = color
-
-            obj = bpy.data.objects.new(name=f"Object_{obj_file.split('/')[-1]}", object_data=mesh)
-            bpy.context.collection.objects.link(obj)
-            imported_objects.append(obj)
+        imported_objects += create_final_object_list(redundant_list, force_painting, model_folder_path)
 
     return imported_objects, origin_num
 
@@ -511,11 +484,11 @@ def render_and_export(output_path, render = "EEVEE", fast_mode = True):
 #     """Save the current Blender file."""
 #     bpy.ops.wm.save_as_mainfile(filepath=filepath)
 
-def save_video(imgs_path, video_path, frame,  time_per_pic = 8):    
+def save_video(imgs_path, video_path, frame,  length_t = 8):    
     # Compile frames into a video using FFmpeg
     command = [
         'ffmpeg', 
-        '-framerate', f'{frame / time_per_pic}',  
+        '-framerate', f'{frame / length_t}',  
         '-i', f'{imgs_path}/%04d.png',  # Adjust the pattern based on how your frames are named
         '-vf', 'tpad=stop_mode=clone:stop_duration=1',  # Hold the last frame for 2 seconds
         '-c:v', 'libx264', 
@@ -681,11 +654,13 @@ def save_blend_file(blend_file_path, max_retries=1000, wait_time=0.5):
     raise RuntimeError(f"Failed to save the file after {max_retries} retries")
 
 
-def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate, rename):
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate, rename, force_painting, min_num):
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
     gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name, order_str, scale_factor = read_trans(trans_path, data_mode, gt_mode)
+    if len(gt_trans_rots)<min_num:
+        return
     output_folder_sub, trans_name = make_new_folder(output_folder, trans_path, model_path_half, rename)
 
 
@@ -711,7 +686,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     delete_default_objects()
 
     # Import all OBJ files
-    imported_objects, origin_num = import_obj_files(model_path, model_folder_path, redundant_path, removal_name, order_str)
+    imported_objects, origin_num = import_obj_files(model_path, model_folder_path, force_painting, redundant_path, removal_name, order_str)
 
     imported_objects = rescale_objects(imported_objects, scale_factor)
 
@@ -767,7 +742,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             rotate_objects_z(imported_objects, degree)
             step_output_path = os.path.join(output_folder_sub, f"{rot_i+1:04d}.png")
             render_and_export(step_output_path, "EEVEE", fast_mode = False)
-        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame, time_per_pic = 8)
+        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= rotate)
 
 
 

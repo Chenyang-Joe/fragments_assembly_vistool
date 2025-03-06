@@ -1,20 +1,21 @@
 {
-  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/breakingbad_fantastic/GARF/everyday_missing_1/version_0/epoch-0/json_results",
-  "model_folder_path": "/mnt/NAS/home/sl10496/breaking_bad/volume",
-  "output_folder": "/mnt/NAS/data/assembly/last_week/vis/breaking_bad/GARF/everyday_vol_missing_1",
-  "single_mode": false,
+  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/marking_vis/pfpp/pastlife_real/22.json",
+  "model_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/models/",
+  "output_folder": "output",
+  "single_mode": true,
   "traversal_all": true,
   "random_draw": false,
   "range": [0, 10],
   "file_num": 10,
   "dotted_line": false,
   "data_mode": "",
-  "clean_mode": true,
+  "clean_mode": false,
   "gt_mode": false,
   "preview_mode": true,
   "preview_rotate": false,
   "rename": true,
-  "force_painting": true,
-  "min_num": 5
+  "force_painting": false,
+  "first_texture_match": true,
+  "min_num": 0
 }
 

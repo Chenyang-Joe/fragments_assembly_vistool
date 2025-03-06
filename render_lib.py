@@ -187,6 +187,7 @@ def parse_ply(file_path, force_painting):
 def create_final_object_list(obj_list, force_painting, folder_path = None):
     imported_objects = []
     VFC_list = []
+    file_path_list = []
     for obj_file in obj_list:
         if os.path.exists(os.path.join(folder_path, obj_file)):
             file_path = os.path.join(folder_path, obj_file)
@@ -196,6 +197,7 @@ def create_final_object_list(obj_list, force_painting, folder_path = None):
             file_path = os.path.join(folder_path, obj_file+'.ply')
         else:
             print("cannot recognise path", os.path.join(folder_path, obj_file))
+        file_path_list.append(file_path)
 
         if file_path.lower().endswith(".obj"):  # check whether it is obj or ply
             vertices, faces, vertex_colors = parse_obj(file_path, force_painting)
@@ -222,7 +224,7 @@ def create_final_object_list(obj_list, force_painting, folder_path = None):
         obj = bpy.data.objects.new(name=f"Object_{obj_file.split('/')[-1]}", object_data=mesh)
         bpy.context.collection.objects.link(obj)
         imported_objects.append(obj)
-    return imported_objects
+    return imported_objects, file_path_list
 
 def rescale_objects(obj_list, scale_factor):
     rescaled_objects = []
@@ -301,14 +303,16 @@ def import_obj_files(folder_path, model_folder_path, force_painting, redundant_p
     imported_objects = []
 
     origin_num = len(obj_files)
-    imported_objects = create_final_object_list(obj_files, force_painting, folder_path)
+    imported_objects, total_file_path_list = create_final_object_list(obj_files, force_painting, folder_path)
 
 
     if redundant_path:
         redundant_list = redundant_path.split(',')
-        imported_objects += create_final_object_list(redundant_list, force_painting, model_folder_path)
+        imported_object, file_path_list_rdd = create_final_object_list(obj_files, force_painting, folder_path)
+        imported_objects += imported_object
+        total_file_path_list += file_path_list_rdd
 
-    return imported_objects, origin_num
+    return imported_objects, origin_num, total_file_path_list
 
 def compute_final_transformation(init_pose, gt_transformation, transformation):
     """Compute the final transformation matrix based on the initial pose, ground truth, and current transformation."""
@@ -657,7 +661,7 @@ def save_blend_file(blend_file_path, max_retries=1000, wait_time=0.5):
     raise RuntimeError(f"Failed to save the file after {max_retries} retries")
 
 
-def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate, rename, force_painting, min_num):
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate, rename, force_painting, first_texture_match, min_num):
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
@@ -689,7 +693,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     delete_default_objects()
 
     # Import all OBJ files
-    imported_objects, origin_num = import_obj_files(model_path, model_folder_path, force_painting, redundant_path, removal_name, order_str)
+    imported_objects, origin_num, total_file_path_list = import_obj_files(model_path, model_folder_path, force_painting, redundant_path, removal_name, order_str)
 
     imported_objects = rescale_objects(imported_objects, scale_factor)
 
@@ -697,9 +701,9 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     for idx, obj in enumerate(imported_objects):
         # assign_random_color(obj)
         if idx < origin_num:
-            adjust_material(obj, "Pigeon Blue pastel SWISS KRONO plastic", False, True)
+            adjust_material(obj, total_file_path_list[idx], "Pigeon Blue pastel SWISS KRONO plastic", False, True, force_painting, first_texture_match)
         else:
-            adjust_material(obj, "Pigeon Blue pastel SWISS KRONO plastic", False, False)
+            adjust_material(obj, total_file_path_list[idx], "Pigeon Blue pastel SWISS KRONO plastic", False, False, force_painting, first_texture_match)
     # Set up light
     setup_light()
 
@@ -775,29 +779,111 @@ def add_asset(source_blend_path):
         
 
 
-def adjust_material(obj, material_name, use_asset, main_part):
+def adjust_material(obj, obj_path, material_name, use_asset, main_part, force_painting, first_texture_match):
     # if texture is provided, use texture.
     color_attr_names = [attr.name for attr in obj.data.color_attributes] # select "Col"
-    if "Col" in color_attr_names:
-        mat = bpy.data.materials.new(name="NewMaterialWithVertexColor")
-        mat.use_nodes = True
-        nodes = mat.node_tree.nodes
-        links = mat.node_tree.links
 
-        vc_node = nodes.new(type="ShaderNodeVertexColor")
-        vc_node.name = "Color Attribute"
-        vc_node.layer_name = "Col"
+    if not force_painting:
+        # if first_texture_match:
+        #     if match_texture:
+        #         match_texture
+        #         return
+        #     elif "Col":
+        #             use "Col"
+        #             return
+        # else:
+        #     if "Col":
+        #         use "Col"
+        #     elif match_texture:
+        #         match_texture
+        #         return
 
-        principled_bsdf = nodes.get("Principled BSDF")
-        links.new(vc_node.outputs["Color"], principled_bsdf.inputs["Base Color"])
+        if first_texture_match:
+            if obj_path.lower().endswith(".obj"):
+                jpg_path = obj_path.replace("obj", "jpg")
+            else:
+                jpg_path = obj_path.replace("ply", "jpg")
+            if os.path.exists(jpg_path):
+                mat = bpy.data.materials.new(name="Texture_Material")
+                mat.use_nodes = True
+                nodes = mat.node_tree.nodes
+                links = mat.node_tree.links
 
-        if obj.data.materials:
-            obj.data.materials[0] = mat
+                texture_image = bpy.data.images.load(jpg_path)
+                
+                texture_node = nodes.new(type="ShaderNodeTexImage")
+                texture_node.image = texture_image
+                texture_node.name = "Image Texture"
+                
+                principled_bsdf = nodes.get("Principled BSDF")
+                links.new(texture_node.outputs["Color"], principled_bsdf.inputs["Base Color"])
+
+                if obj.data.materials:
+                    obj.data.materials[0] = mat
+                else:
+                    obj.data.materials.append(mat)
+                return
+            elif "Col" in color_attr_names:
+                mat = bpy.data.materials.new(name="NewMaterialWithVertexColor")
+                mat.use_nodes = True
+                nodes = mat.node_tree.nodes
+                links = mat.node_tree.links
+
+                vc_node = nodes.new(type="ShaderNodeVertexColor")
+                vc_node.name = "Color Attribute"
+                vc_node.layer_name = "Col"
+
+                principled_bsdf = nodes.get("Principled BSDF")
+                links.new(vc_node.outputs["Color"], principled_bsdf.inputs["Base Color"])
+
+                if obj.data.materials:
+                    obj.data.materials[0] = mat
+                else:
+                    obj.data.materials.append(mat)
+                return
         else:
-            obj.data.materials.append(mat)
-        return
-    
-    
+            if obj_path.lower().endswith(".obj"):
+                jpg_path = obj_path.replace("obj", "jpg")
+            else:
+                jpg_path = obj_path.replace("ply", "jpg")
+            if "Col" in color_attr_names:
+                mat = bpy.data.materials.new(name="NewMaterialWithVertexColor")
+                mat.use_nodes = True
+                nodes = mat.node_tree.nodes
+                links = mat.node_tree.links
+
+                vc_node = nodes.new(type="ShaderNodeVertexColor")
+                vc_node.name = "Color Attribute"
+                vc_node.layer_name = "Col"
+
+                principled_bsdf = nodes.get("Principled BSDF")
+                links.new(vc_node.outputs["Color"], principled_bsdf.inputs["Base Color"])
+
+                if obj.data.materials:
+                    obj.data.materials[0] = mat
+                else:
+                    obj.data.materials.append(mat)
+                return
+            elif os.path.exists(jpg_path):
+                mat = bpy.data.materials.new(name="Texture_Material")
+                mat.use_nodes = True
+                nodes = mat.node_tree.nodes
+                links = mat.node_tree.links
+
+                texture_image = bpy.data.images.load(jpg_path)
+                
+                texture_node = nodes.new(type="ShaderNodeTexImage")
+                texture_node.image = texture_image
+                texture_node.name = "Image Texture"
+                
+                principled_bsdf = nodes.get("Principled BSDF")
+                links.new(texture_node.outputs["Color"], principled_bsdf.inputs["Base Color"])
+
+                if obj.data.materials:
+                    obj.data.materials[0] = mat
+                else:
+                    obj.data.materials.append(mat)
+                return
 
     # else, just apply color set.
     mat = None

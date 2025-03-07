@@ -21,11 +21,14 @@ def select_model(folder_path, file_num, single_mode, random_draw, traversal_all,
     if data_mode != "puzzlefusion":
         all_files = [os.path.join(folder_path, name) for name in os.listdir(folder_path)
                     if (os.path.isfile(os.path.join(folder_path, name)) and (name[0]!="."))]
-        all_files = sorted(all_files, key=lambda x: int(os.path.basename(x).split('.')[0]))
+        if os.path.basename(all_files[0]).split('.')[0].isdigit():
+            all_files = sorted(all_files, key=lambda x: int(os.path.basename(x).split('.')[0]))
     else:
         all_files = [os.path.join(folder_path, name) for name in os.listdir(folder_path)
             if os.path.isdir(os.path.join(folder_path, name))]
-        all_files = sorted(all_files, key=lambda x: int(os.path.basename(x).split('/')[-1]))
+        if os.path.basename(all_files[0]).split('/')[0].isdigit():
+            all_files = sorted(all_files, key=lambda x: int(os.path.basename(x).split('/')[-1]))
+
         
     start = range[0]
     end = range[1]+1

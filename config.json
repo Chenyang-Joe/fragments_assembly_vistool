@@ -1,6 +1,6 @@
 {
-  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/marking_vis/pfpp/pastlife_real/22.json",
-  "model_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/models/",
+  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/breakingbad_fantastic/GARF/artifact_redundant_1/version_0/epoch-0/json_results/7.json",
+  "model_folder_path": "/mnt/NAS/home/sl10496/breaking_bad/volume",
   "output_folder": "output",
   "single_mode": true,
   "traversal_all": true,
@@ -14,8 +14,8 @@
   "preview_mode": true,
   "preview_rotate": false,
   "rename": true,
-  "force_painting": false,
-  "first_texture_match": true,
-  "min_num": 0
+  "force_painting": true,
+  "first_texture_match": false,
+  "min_num": 6
 }
 

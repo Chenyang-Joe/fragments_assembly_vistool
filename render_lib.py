@@ -184,7 +184,7 @@ def parse_ply(file_path, force_painting):
 
 
 
-def create_final_object_list(obj_list, force_painting, folder_path = None):
+def create_final_object_list(obj_list, force_painting, folder_path = ""):
     imported_objects = []
     VFC_list = []
     file_path_list = []
@@ -308,9 +308,9 @@ def import_obj_files(folder_path, model_folder_path, force_painting, redundant_p
 
     if redundant_path:
         redundant_list = redundant_path.split(',')
-        imported_object, file_path_list_rdd = create_final_object_list(obj_files, force_painting, folder_path)
-        imported_objects += imported_object
-        total_file_path_list += file_path_list_rdd
+        imported_redundant_object, file_path_list_rdd = create_final_object_list(redundant_list, force_painting, model_folder_path)
+        imported_objects = imported_objects + imported_redundant_object
+        total_file_path_list = total_file_path_list + file_path_list_rdd
 
     return imported_objects, origin_num, total_file_path_list
 

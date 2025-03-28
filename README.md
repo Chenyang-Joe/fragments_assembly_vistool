@@ -23,8 +23,9 @@
    ```bash
    blender --background --python-expr "import sys; print(sys.executable)"   
    ```
-   install trimesh 
+   install trimesh
    ```
+   /python/path/example/python/bin/python3.11 -m pip install --upgrade pip
    /python/path/example/python/bin/python3.11 -m ensurepip  
    /python/path/example/python/bin/python3.11 -m pip install trimesh
    blender --background --python-expr "import trimesh; print(trimesh.__version__)"      

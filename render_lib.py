@@ -370,6 +370,30 @@ def apply_final_transformation(obj, init_pose, gt_transformation, transformation
     local_com = com_list[obj_index]
     return obj.matrix_world @ local_com
 
+def interpolate_affine_numpy7(A, B, steps):
+    if A.shape != (7,) or B.shape != (7,):
+        raise ValueError("Both A and B must be numpy arrays of shape (7,)")
+    
+    transA = np.array(A[:3])
+    transB = np.array(B[:3])
+    
+    quatA = Quaternion(A[3:7])
+    quatB = Quaternion(B[3:7])
+    
+    result = []
+    for i in range(1, steps + 1):
+        t = i / float(steps)
+        
+        trans_interp = (1 - t) * transA + t * transB
+
+        quat_interp = Quaternion.slerp(quatA, quatB, t)
+
+        interp_array = np.concatenate([trans_interp, np.array([quat_interp.w, quat_interp.x, quat_interp.y, quat_interp.z])])
+        result.append(interp_array)
+    
+    return result
+
+
 def setup_light():
     """Add multiple lights to the scene."""
     def point_light_at(light, target_location):
@@ -453,6 +477,11 @@ def render_and_export(output_path, render = "EEVEE", fast_mode = True):
         bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'  # Use Cycles rendering engine
         # Eevee does not use device settings like Cycles  # Use CPU rendering to avoid Metal issues
 
+        bpy.context.scene.cycles.samples = 1024  
+    
+    elif render == "EEVEE_GPU":
+        bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'  # Use Cycles rendering engine
+
         bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
         bpy.context.preferences.addons['cycles'].preferences.get_devices()
         for device in bpy.context.preferences.addons['cycles'].preferences.devices:
@@ -460,7 +489,8 @@ def render_and_export(output_path, render = "EEVEE", fast_mode = True):
                 device.use = True
         bpy.context.scene.cycles.device = 'GPU'
         bpy.context.scene.cycles.samples = 1024  
-    
+
+
     elif render == "CYCLES":
         bpy.context.scene.render.engine = 'CYCLES'
         bpy.context.scene.cycles.device = 'CPU'
@@ -494,11 +524,11 @@ def render_and_export(output_path, render = "EEVEE", fast_mode = True):
 #     """Save the current Blender file."""
 #     bpy.ops.wm.save_as_mainfile(filepath=filepath)
 
-def save_video(imgs_path, video_path, frame,  length_t = 8):    
+def save_video(imgs_path, video_path, frame, inter_num = 1, length_t = 8):    
     # Compile frames into a video using FFmpeg
     command = [
         'ffmpeg', 
-        '-framerate', f'{frame / length_t}',  
+        '-framerate', f'{frame / (length_t/inter_num)}',  
         '-i', f'{imgs_path}/%04d.png',  # Adjust the pattern based on how your frames are named
         '-vf', 'tpad=stop_mode=clone:stop_duration=1',  # Hold the last frame for 2 seconds
         '-c:v', 'libx264', 
@@ -663,8 +693,31 @@ def save_blend_file(blend_file_path, max_retries=1000, wait_time=0.5):
     print(f"Failed to save file {blend_file_path} after {max_retries} retries.")
     raise RuntimeError(f"Failed to save the file after {max_retries} retries")
 
+def sort_by_name(total_file_path_list, imported_objects, gt_trans_rots, pred_trans_rots,  origin_num):
+    # sort the objects their corresponding trans by name
 
-def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate, rename, force_painting, first_texture_match, min_num):
+    # only change the main body order, not the redundant
+    total_file_path_list_t = total_file_path_list[:origin_num]
+    imported_objects_t = imported_objects[:origin_num]
+    gt_trans_rots_t = gt_trans_rots[:origin_num]
+    pred_trans_rots_t = []
+    for item in pred_trans_rots:
+        pred_trans_rots_t.append(item[:origin_num])
+
+
+    order = sorted(range(len(total_file_path_list_t)), key=lambda i: total_file_path_list_t[i].split("/")[-1])
+    total_file_path_list[:origin_num] = [total_file_path_list_t[i] for i in order]
+    imported_objects[:origin_num] = [imported_objects_t[i] for i in order]
+    gt_trans_rots[:origin_num] = [gt_trans_rots_t[i] for i in order]
+
+    for idx, item in enumerate(pred_trans_rots_t):
+        pred_trans_rots[idx][:origin_num] = [pred_trans_rots_t[idx][i] for i in order]
+
+
+    return total_file_path_list, imported_objects, gt_trans_rots, pred_trans_rots
+
+
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate, rename, force_painting, first_texture_match, min_num, presentation):
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
@@ -698,6 +751,8 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     # Import all OBJ files
     imported_objects, origin_num, total_file_path_list = import_obj_files(model_path, model_folder_path, force_painting, redundant_path, removal_name, order_str)
 
+    total_file_path_list, imported_objects, gt_trans_rots, pred_trans_rots = sort_by_name(total_file_path_list, imported_objects, gt_trans_rots, pred_trans_rots,  origin_num)
+
     imported_objects = rescale_objects(imported_objects, scale_factor)
 
     # # Assign random colors to each object
@@ -721,31 +776,77 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     num_obj = pred_trans_rots.shape[1]
     objects_location_com = [[]for _ in range(num_obj)]
     com_list = get_local_com_list(imported_objects)
+
+    gt_transform_record = [np.zeros(7) for i in range(len(imported_objects))]
+    pred_transform_record = [np.zeros(7) for i in range(len(imported_objects))]   
+    interpolate = False
     # Apply predicted transformations step by step and render
     for step_idx, step_transforms in enumerate(pred_trans_rots):
-        for obj_index, (obj, gt_transform, pred_transform) in enumerate(
-            zip(imported_objects, gt_trans_rots, step_transforms)
-        ):
-            location_com = apply_final_transformation(obj,  init_pose, gt_transform, pred_transform, com_list, obj_index)
-            objects_location_com[obj_index].append(location_com)
-            if (len(objects_location_com[obj_index])>1) and dotted_line:
-                create_uv_sphere(objects_location_com[obj_index][-2], obj, 0.01) # only plot the last position every time
-            if gt_mode:
-                rotation_matrix = Matrix.Rotation(math.radians(180), 4, 'X')
-                obj.matrix_world @= rotation_matrix
-        if dotted_line:
-            add_trajectory(imported_objects, objects_location_com)
-        step_output_path = os.path.join(output_folder_sub, f"{step_idx:04d}.png")
-        if not preview_mode:
+        if not presentation:
+            for obj_index, (obj, gt_transform, pred_transform) in enumerate(
+                zip(imported_objects, gt_trans_rots, step_transforms)
+            ):
+                location_com = apply_final_transformation(obj,  init_pose, gt_transform, pred_transform, com_list, obj_index)
+
+                objects_location_com[obj_index].append(location_com)
+                if (len(objects_location_com[obj_index])>1) and dotted_line:
+                    create_uv_sphere(objects_location_com[obj_index][-2], obj, 0.01) # only plot the last position every time
+                
+                if gt_mode:
+                    rotation_matrix = Matrix.Rotation(math.radians(180), 4, 'X')
+                    obj.matrix_world @= rotation_matrix
+            if dotted_line:
+                add_trajectory(imported_objects, objects_location_com)
+            step_output_path = os.path.join(output_folder_sub, f"{step_idx:04d}.png")
+            if (not preview_mode) and (not presentation):
+                render_and_export(step_output_path, "EEVEE", fast_mode = True)
+            frame += 1
+        elif presentation and (step_idx == 0):
+            for obj_index, (obj, gt_transform, pred_transform) in enumerate(
+                zip(imported_objects, gt_trans_rots, step_transforms)):
+                location_com = apply_final_transformation(obj,  init_pose, gt_transform, pred_transform, com_list, obj_index)
+
+                gt_transform_record[obj_index] = gt_transform
+                pred_transform_record[obj_index] = pred_transform
+
+            step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
             render_and_export(step_output_path, "EEVEE", fast_mode = True)
-        frame += 1
+            frame += 1
+        
+        elif presentation:
+            inter_num = 3
+            gt_transform_new = [[] for i in range(len(imported_objects))]
+            pred_transform_new = [[] for i in range(len(imported_objects))]                
+            for inter_index in range(inter_num):
+                for obj_index, (obj, gt_transform, pred_transform) in enumerate(
+                    zip(imported_objects, gt_trans_rots, step_transforms)):
+                    if step_idx != 0:
+                        gt_transform_new[obj_index] = interpolate_affine_numpy7(gt_transform_record[obj_index], gt_transform, inter_num)
+                        pred_transform_new[obj_index] = interpolate_affine_numpy7(pred_transform_record[obj_index], pred_transform, inter_num)
+                    location_com = apply_final_transformation(obj,  init_pose, gt_transform_new[obj_index][inter_index], pred_transform_new[obj_index][inter_index], com_list, obj_index)
+
+                    if inter_index == (inter_num-1):
+                        gt_transform_record[obj_index] = gt_transform
+                        pred_transform_record[obj_index] = pred_transform
+
+                step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
+                render_and_export(step_output_path, "EEVEE", fast_mode = True)
+                frame += 1
+
+
+
+
+
+
+
+
     preview_output_path = os.path.join(output_folder_preview, f"{trans_name}.png")
     if preview_mode:
         adjust_geometry_center(imported_objects)
     render_and_export(preview_output_path, "EEVEE", fast_mode = False)
     fill_colors()
     if not preview_mode:
-        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame)
+        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame, inter_num = inter_num)
     elif preview_rotate:
         rotate = 20
         degree = 360/rotate

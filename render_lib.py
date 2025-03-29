@@ -104,6 +104,9 @@ def read_trans(trans_file_path, data_mode, gt_mode = False):
         gt_trans_rots = gt_trans_rots*0
         init_pose = init_pose*0
 
+    # pred_trans_rots = np.concatenate((pred_trans_rots[:1, :, :] * 0, pred_trans_rots), axis=0)
+    # pred_trans_rots = np.concatenate((np.expand_dims(gt_trans_rots, axis=0), pred_trans_rots), axis=0)
+
     return gt_trans_rots, pred_trans_rots, init_pose, model_path_half, redundant_path, removal_name, order_str, scale_factor
 
 def reset_scene():
@@ -336,6 +339,7 @@ def compute_final_transformation(init_pose, gt_transformation, transformation):
     rot_mat4 = Quaternion(init_pose[3:]).to_matrix().to_4x4()
 
     final_transformation = rot_mat4 @ trans_mat4 @ trans_mat3 @ rot_mat3 @ rot_mat2 @ trans_mat2 @ trans_mat1 @ rot_mat1
+
     return final_transformation
 
 def get_local_center_of_mass(obj):
@@ -424,6 +428,72 @@ def setup_light():
     light3.data.size = 10  # 10m size
     point_light_at(light3, (0, 0, 0))
 
+def setup_light_pre1():
+    """Add multiple lights to the scene."""
+    def point_light_at(light, target_location):
+        direction = Vector(target_location) - light.location
+        light.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
+
+    # Add the first light
+    bpy.ops.object.light_add(type='AREA', location=(2.7, -3, 2.7))
+    light1 = bpy.context.object
+    light1.data.energy = 800  # 500W in Blender's energy units
+    light1.data.color = (1, 1, 1)  # White
+    light1.data.size = 10  # 10m size
+    point_light_at(light1, (0, 0, 0))
+
+    # Add the second light
+    bpy.ops.object.light_add(type='AREA', location=(-4.3, -3.4, 2.7))
+    light2 = bpy.context.object
+    light2.data.energy = 300  # 50W in Blender's energy units
+    light2.data.color = (1, 1, 1)  # White
+    light2.data.size = 10  # 10m size
+    point_light_at(light2, (0, 0, 0))
+
+    # Add the third light
+    bpy.ops.object.light_add(type='SPOT', location=(-3.31, 3.6, 4.38))
+    light3 = bpy.context.object
+    light3.data.energy = 1000  # 1000W in Blender's energy units
+    light3.data.color = (1, 1, 1)  # White
+    light3.data.shadow_soft_size = 2     
+    light3.data.spot_size = math.radians(60)  
+    light3.data.spot_blend = 1 
+    point_light_at(light3, (0, 0, 0))
+
+def setup_light_pre2():
+    """Add multiple lights to the scene."""
+    def point_light_at(light, target_location):
+        direction = Vector(target_location) - light.location
+        light.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
+
+    # Add the first light
+    bpy.ops.object.light_add(type='SPOT', location=(2.83, -3, 4.01))
+    light1 = bpy.context.object
+    light1.data.energy = 1200  # 500W in Blender's energy units
+    light1.data.color = (1, 1, 1)  # White
+    light1.data.shadow_soft_size = 0.6  
+    light1.data.spot_size = math.radians(70)  
+    light1.data.spot_blend = 1     
+    point_light_at(light1, (0, 0, 0))
+
+    # Add the second light
+    bpy.ops.object.light_add(type='AREA', location=(-4.3, -3.4, 2.7))
+    light2 = bpy.context.object
+    light2.data.energy = 300  # 50W in Blender's energy units
+    light2.data.color = (1, 1, 1)  # White
+    light2.data.size = 10  # 10m size
+    point_light_at(light2, (0, 0, 0))
+
+    # Add the third light
+    bpy.ops.object.light_add(type='POINT', location=(-3.31, 3.6, 4.38))
+    light3 = bpy.context.object
+    light3.data.energy = 1000  # 1000W in Blender's energy units
+    light3.data.color = (1, 1, 1)  # White
+    light3.data.shadow_soft_size = 2     
+    point_light_at(light3, (0, 0, 0))
+
+
+
 def setup_camera(target):
     """Add and position a camera to focus on the target object."""
     bpy.ops.object.camera_add(location=(0, -4, 1.5))
@@ -470,6 +540,28 @@ def set_white_background():
     comp_links.new(render_layers.outputs[0], alpha_over.inputs[2])  # View layer to lower layer
     comp_links.new(white_color.outputs[0], alpha_over.inputs[1])   # White to upper layer
     comp_links.new(alpha_over.outputs[0], composite_output.inputs[0])  # Alpha over to composite
+
+def set_pre_background():
+    bpy.ops.mesh.primitive_plane_add(
+        size=15,
+        location=(0, 4, 0),
+        rotation=(math.radians(90), 0, 0)
+    )
+    bpy.ops.mesh.primitive_plane_add(
+        size=20,
+        # location=(0, 0, -0.61)
+        location=(0, 0, -1.5)
+
+    )
+    # bpy.ops.object.select_all(action='DESELECT')
+    # second_bg = bpy.context.object
+    # return second_bg 
+
+# def move_plane(second_bg, init_height, target_height, frac):
+#     new_height = (target_height - init_height)* frac + init_height
+#     second_bg.location.z = new_height
+
+
 
 def render_and_export(output_path, render = "EEVEE", fast_mode = True):
     """Render the scene and export the image."""
@@ -697,12 +789,12 @@ def sort_by_name(total_file_path_list, imported_objects, gt_trans_rots, pred_tra
     # sort the objects their corresponding trans by name
 
     # only change the main body order, not the redundant
-    total_file_path_list_t = total_file_path_list[:origin_num]
-    imported_objects_t = imported_objects[:origin_num]
-    gt_trans_rots_t = gt_trans_rots[:origin_num]
+    total_file_path_list_t = total_file_path_list[:origin_num].copy()
+    imported_objects_t = imported_objects[:origin_num].copy()
+    gt_trans_rots_t = gt_trans_rots[:origin_num].copy()
     pred_trans_rots_t = []
     for item in pred_trans_rots:
-        pred_trans_rots_t.append(item[:origin_num])
+        pred_trans_rots_t.append(item[:origin_num].copy())
 
 
     order = sorted(range(len(total_file_path_list_t)), key=lambda i: total_file_path_list_t[i].split("/")[-1])
@@ -763,21 +855,30 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
         else:
             adjust_material(obj, total_file_path_list[idx], "Pigeon Blue pastel SWISS KRONO plastic", False, False, force_painting, first_texture_match)
     # Set up light
-    setup_light()
+    if not presentation:
+        setup_light()
+    else:
+        setup_light_pre2()
 
     # Set up camera
     if imported_objects:
         setup_camera(imported_objects[0])  # Focus on the first imported object
 
     # Set background to white
-    set_white_background()
+    if not presentation:
+        set_white_background()
+    else:
+        set_pre_background()
+        # second_bg = set_pre_background()
+        # init_height = second_bg.location.z
+
 
     frame =0
     num_obj = pred_trans_rots.shape[1]
     objects_location_com = [[]for _ in range(num_obj)]
     com_list = get_local_com_list(imported_objects)
 
-    gt_transform_record = [np.zeros(7) for i in range(len(imported_objects))]
+    # gt_transform_record = [np.zeros(7) for i in range(len(imported_objects))]
     pred_transform_record = [np.zeros(7) for i in range(len(imported_objects))]   
     interpolate = False
     # Apply predicted transformations step by step and render
@@ -787,7 +888,6 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
                 zip(imported_objects, gt_trans_rots, step_transforms)
             ):
                 location_com = apply_final_transformation(obj,  init_pose, gt_transform, pred_transform, com_list, obj_index)
-
                 objects_location_com[obj_index].append(location_com)
                 if (len(objects_location_com[obj_index])>1) and dotted_line:
                     create_uv_sphere(objects_location_com[obj_index][-2], obj, 0.01) # only plot the last position every time
@@ -806,7 +906,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
                 zip(imported_objects, gt_trans_rots, step_transforms)):
                 location_com = apply_final_transformation(obj,  init_pose, gt_transform, pred_transform, com_list, obj_index)
 
-                gt_transform_record[obj_index] = gt_transform
+                # gt_transform_record[obj_index] = gt_transform
                 pred_transform_record[obj_index] = pred_transform
 
             step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
@@ -814,19 +914,23 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             frame += 1
         
         elif presentation:
+            # if (step_idx == 1):
+            #     inter_num = 20
+            # else:
+            #     inter_num = 3
             inter_num = 3
-            gt_transform_new = [[] for i in range(len(imported_objects))]
+            # gt_transform_new = [[] for i in range(len(imported_objects))]
             pred_transform_new = [[] for i in range(len(imported_objects))]                
             for inter_index in range(inter_num):
                 for obj_index, (obj, gt_transform, pred_transform) in enumerate(
                     zip(imported_objects, gt_trans_rots, step_transforms)):
-                    if step_idx != 0:
-                        gt_transform_new[obj_index] = interpolate_affine_numpy7(gt_transform_record[obj_index], gt_transform, inter_num)
+                    if step_idx != 0 and inter_index == 0:
+                        # gt_transform_new[obj_index] = interpolate_affine_numpy7(gt_transform_record[obj_index], gt_transform, inter_num)
                         pred_transform_new[obj_index] = interpolate_affine_numpy7(pred_transform_record[obj_index], pred_transform, inter_num)
-                    location_com = apply_final_transformation(obj,  init_pose, gt_transform_new[obj_index][inter_index], pred_transform_new[obj_index][inter_index], com_list, obj_index)
+                    location_com = apply_final_transformation(obj,  init_pose, gt_transform, pred_transform_new[obj_index][inter_index], com_list, obj_index)
 
                     if inter_index == (inter_num-1):
-                        gt_transform_record[obj_index] = gt_transform
+                        # gt_transform_record[obj_index] = gt_transform
                         pred_transform_record[obj_index] = pred_transform
 
                 step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
@@ -844,9 +948,8 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     if preview_mode:
         adjust_geometry_center(imported_objects)
     render_and_export(preview_output_path, "EEVEE", fast_mode = False)
-    fill_colors()
-    if not preview_mode:
-        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame, inter_num = inter_num)
+    if not preview_mode and not presentation:
+        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame)
     elif preview_rotate:
         rotate = 20
         degree = 360/rotate
@@ -855,7 +958,30 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             step_output_path = os.path.join(output_folder_sub, f"{rot_i+1:04d}.png")
             render_and_export(step_output_path, "EEVEE", fast_mode = False)
         save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= rotate)
+    elif presentation:
 
+        target_height = -0.61
+        height_steps = 20
+        for i in range(height_steps):
+            # move_plane(second_bg, init_height, target_height, (i+1)/height_steps)
+
+
+            step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
+            render_and_export(step_output_path, "EEVEE", fast_mode = True)
+            frame += 1
+
+        rotate = 50
+        degree = 360/rotate
+        for rot_i in range(rotate):
+            rotate_objects_z(imported_objects, degree)
+            step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
+            render_and_export(step_output_path, "EEVEE", fast_mode = True)
+            frame += 1
+        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame/2, inter_num = inter_num)
+
+
+
+    fill_colors()
 
 
 

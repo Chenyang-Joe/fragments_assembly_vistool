@@ -910,7 +910,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
                 pred_transform_record[obj_index] = pred_transform
 
             step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
-            render_and_export(step_output_path, "EEVEE", fast_mode = True)
+            render_and_export(step_output_path, "EEVEE_GPU", fast_mode = False)
             frame += 1
         
         elif presentation:
@@ -934,7 +934,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
                         pred_transform_record[obj_index] = pred_transform
 
                 step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
-                render_and_export(step_output_path, "EEVEE", fast_mode = True)
+                render_and_export(step_output_path, "EEVEE_GPU", fast_mode = False)
                 frame += 1
 
 
@@ -967,7 +967,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
 
 
             step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
-            render_and_export(step_output_path, "EEVEE", fast_mode = True)
+            render_and_export(step_output_path, "EEVEE_GPU", fast_mode = False)
             frame += 1
 
         rotate = 50
@@ -975,7 +975,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
         for rot_i in range(rotate):
             rotate_objects_z(imported_objects, degree)
             step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
-            render_and_export(step_output_path, "EEVEE", fast_mode = True)
+            render_and_export(step_output_path, "EEVEE_GPU", fast_mode = False)
             frame += 1
         save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame/2, inter_num = inter_num)
 

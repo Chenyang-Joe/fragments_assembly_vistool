@@ -1,8 +1,8 @@
 {
-  "trans_folder_path": "/Users/chenyangxu/Codebase/AI4CE/assembly2025iccv/matching color/blender_change_color/change_color/supple_bb/GARF/raw_data/159-everyday-Bottle-e593aa021f3fa324530647fc03dd20dc-mode_17-everyday-Bottle-e593aa021f3fa324530647fc03dd20dc-mode_17/159-everyday-Bottle-e593aa021f3fa324530647fc03dd20dc-mode_17-everyday-Bottle-e593aa021f3fa324530647fc03dd20dc-mode_17.json",
-  "model_folder_path": "/Users/chenyangxu/Codebase/AI4CE/assembly2025iccv/assembly/breaking_bad_model/",
-  "output_folder": "output",
-  "single_mode": true,
+  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/CYCLES/experiment compare/GARF/artifact_vol/json_data/",
+  "model_folder_path": "/mnt/NAS/home/sl10496/breaking_bad/volume",
+  "output_folder": "/mnt/NAS/data/assembly/last_week/vis/video/bb_artifact",
+  "single_mode": false,
   "traversal_all": true,
   "random_draw": false,
   "range": [0, 10],

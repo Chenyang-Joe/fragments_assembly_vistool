@@ -242,7 +242,10 @@ def rescale_objects(obj_list, scale_factor):
         # world_matrix = world_matrix.Scale(scale_factor, 4)  # 4 means scaling in 4 dimensions, for 3D objects
         # obj.matrix_world = world_matrix
         rescaled_objects.append(obj)
+        # gt_trans_rots = gt_trans_rots * scale_factor
+        # pred_trans_rots = pred_trans_rots * scale_factor
     
+    # return rescaled_objects, gt_trans_rots, pred_trans_rots
     return rescaled_objects
 
 
@@ -918,7 +921,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             #     inter_num = 20
             # else:
             #     inter_num = 3
-            inter_num = 3
+            inter_num = 5
             # gt_transform_new = [[] for i in range(len(imported_objects))]
             pred_transform_new = [[] for i in range(len(imported_objects))]                
             for inter_index in range(inter_num):
@@ -961,7 +964,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     elif presentation:
 
         target_height = -0.61
-        height_steps = 20
+        height_steps = 15
         for i in range(height_steps):
             # move_plane(second_bg, init_height, target_height, (i+1)/height_steps)
 
@@ -970,7 +973,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             render_and_export(step_output_path, "EEVEE_GPU", fast_mode = False)
             frame += 1
 
-        rotate = 50
+        rotate = 70
         degree = 360/rotate
         for rot_i in range(rotate):
             rotate_objects_z(imported_objects, degree)

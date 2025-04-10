@@ -248,6 +248,46 @@ def rescale_objects(obj_list, scale_factor):
     # return rescaled_objects, gt_trans_rots, pred_trans_rots
     return rescaled_objects
 
+def rotate_object_around_world_origin(obj, x_deg, y_deg, z_deg, reverse):
+    if obj.type != 'MESH':
+        return
+
+    x_rad = math.radians(x_deg)
+    y_rad = math.radians(y_deg)
+    z_rad = math.radians(z_deg)
+
+    loc = obj.location.copy()
+
+    obj.location = Vector((0, 0, 0))
+    bpy.context.view_layer.update()
+
+    rot_x = Matrix.Rotation(x_rad, 4, 'X')
+    rot_y = Matrix.Rotation(y_rad, 4, 'Y')
+    rot_z = Matrix.Rotation(z_rad, 4, 'Z')
+
+    if not reverse:
+        rotation_matrix = rot_z @ rot_y @ rot_x
+    else:
+        rotation_matrix = rot_x @ rot_y @ rot_z
+
+
+    obj.matrix_world = rotation_matrix @ obj.matrix_world
+    obj.location = rotation_matrix @ loc
+
+    # print(f"{obj.name} rotated.")
+
+def rotate_all_meshes(obj_list, rotate_info, reverse = False):
+    local_rotate_info = rotate_info.copy()
+    x_deg = local_rotate_info[0]
+    y_deg = local_rotate_info[1]
+    z_deg = local_rotate_info[2]
+    if reverse:
+        x_deg *= -1
+        y_deg *= -1
+        z_deg *= -1 
+    for obj in obj_list:
+        rotate_object_around_world_origin(obj, x_deg, y_deg, z_deg, reverse)
+
 
 def set_origin_to_geometry(obj):
     bpy.ops.object.select_all(action='DESELECT')  
@@ -623,7 +663,7 @@ def save_video(imgs_path, video_path, frame, inter_num = 1, length_t = 8):
     # Compile frames into a video using FFmpeg
     command = [
         'ffmpeg', 
-        '-framerate', f'{frame / (length_t/inter_num)}',  
+        '-framerate', f'{frame * 0.6 / (length_t/inter_num)}',  
         '-i', f'{imgs_path}/%04d.png',  # Adjust the pattern based on how your frames are named
         '-vf', 'tpad=stop_mode=clone:stop_duration=1',  # Hold the last frame for 2 seconds
         '-c:v', 'libx264', 
@@ -812,7 +852,7 @@ def sort_by_name(total_file_path_list, imported_objects, gt_trans_rots, pred_tra
     return total_file_path_list, imported_objects, gt_trans_rots, pred_trans_rots
 
 
-def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate, rename, force_painting, first_texture_match, min_num, presentation):
+def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mode, clean_mode, gt_mode, preview_mode, preview_rotate, rename, force_painting, first_texture_match, min_num, presentation, rotate_degree):
     """Main function to orchestrate the process."""
     if check_empty(trans_path, data_mode):
         return
@@ -849,6 +889,7 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
     total_file_path_list, imported_objects, gt_trans_rots, pred_trans_rots = sort_by_name(total_file_path_list, imported_objects, gt_trans_rots, pred_trans_rots,  origin_num)
 
     imported_objects = rescale_objects(imported_objects, scale_factor)
+
 
     # # Assign random colors to each object
     for idx, obj in enumerate(imported_objects):
@@ -913,7 +954,10 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
                 pred_transform_record[obj_index] = pred_transform
 
             step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
+            rotate_all_meshes(imported_objects, rotate_degree, False)
             render_and_export(step_output_path, "EEVEE_GPU", fast_mode = False)
+            rotate_all_meshes(imported_objects, rotate_degree, True)
+
             frame += 1
         
         elif presentation:
@@ -937,7 +981,9 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
                         pred_transform_record[obj_index] = pred_transform
 
                 step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
+                rotate_all_meshes(imported_objects, rotate_degree, False)
                 render_and_export(step_output_path, "EEVEE_GPU", fast_mode = False)
+                rotate_all_meshes(imported_objects, rotate_degree, True)
                 frame += 1
 
 
@@ -962,8 +1008,8 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             render_and_export(step_output_path, "EEVEE", fast_mode = False)
         save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= rotate)
     elif presentation:
-
-        target_height = -0.61
+        rotate_all_meshes(imported_objects, rotate_degree, False)
+        # target_height = -0.61
         height_steps = 15
         for i in range(height_steps):
             # move_plane(second_bg, init_height, target_height, (i+1)/height_steps)
@@ -973,14 +1019,14 @@ def generate(trans_path, output_folder, model_folder_path, dotted_line, data_mod
             render_and_export(step_output_path, "EEVEE_GPU", fast_mode = False)
             frame += 1
 
-        rotate = 70
+        rotate = 100
         degree = 360/rotate
         for rot_i in range(rotate):
             rotate_objects_z(imported_objects, degree)
             step_output_path = os.path.join(output_folder_sub, f"{frame:04d}.png")
             render_and_export(step_output_path, "EEVEE_GPU", fast_mode = False)
             frame += 1
-        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame/2, inter_num = inter_num)
+        save_video(imgs_path = output_folder_sub, video_path = output_folder_video+ f"/{trans_name}.mp4", frame= frame, inter_num = inter_num)
 
 
 

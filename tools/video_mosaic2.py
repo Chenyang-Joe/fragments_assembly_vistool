@@ -33,6 +33,7 @@ def create_video_mosaic(input_folder, rows, columns, output_file='output_mosaic.
         sys.exit(1)
     
     # Select the required number of input files for the mosaic
+    
     selected_inputs = input_files[:total_inputs]
     print(f"Selected {total_inputs} input files for a {rows}x{columns} mosaic:")
     for idx, file in enumerate(selected_inputs, 1):
@@ -50,9 +51,15 @@ def create_video_mosaic(input_folder, rows, columns, output_file='output_mosaic.
     
     # Apply setpts to synchronize the videos and label them as a0, a1, ..., aN
     for idx in range(total_inputs):
-        # filter_complex_parts.append(f'[{idx}:v] setpts=PTS-STARTPTS, scale=160x90 [a{idx}]')
-        filter_complex_parts.append(f'[{idx}:v] setpts=PTS-STARTPTS, scale=640x360 [a{idx}]')
-    
+        # filter_complex_parts.append(f'[{idx}:v] setpts=PTS-STARTPTS, scale=50x50 [a{idx}]')
+        # filter_complex_parts.append(f'[{idx}:v] setpts=PTS-STARTPTS, scale=300x300 [a{idx}]')
+        filter_complex_parts.append(f'[{idx}:v] setpts=PTS-STARTPTS, scale=250x228, pad=256:234:3:3:color=black [a{idx}]')
+        # filter_complex_parts.append(f'[{idx}:v] setpts=PTS-STARTPTS, scale=640x360 [a{idx}]')
+        # filter_complex_parts.append(
+        #     f'[{idx}:v] setpts=PTS-STARTPTS, scale=100x100, tpad=stop_mode=clone:stop_duration=4, trim=duration=4 [a{idx}]'
+        # )
+
+
     # Generate the layout string for xstack
     layout_positions = []
     for row in range(rows):
@@ -101,6 +108,12 @@ def create_video_mosaic(input_folder, rows, columns, output_file='output_mosaic.
     if codec == "hevc_nvenc":
         ffmpeg_cmd.extend(['-vtag', 'hvc1'])
 
+    # ************************for mosaic only*****************************
+    ffmpeg_cmd.extend(['-r', '30'])
+    ffmpeg_cmd.extend(['-vsync', '2'])
+    ffmpeg_cmd.extend(['-level', '6.2'])
+    ffmpeg_cmd.extend(['-shortest'])
+
     # Add the output file to the ffmpeg command
     ffmpeg_cmd.append(output_file)
 
@@ -133,3 +146,4 @@ if __name__ == "__main__":
     create_video_mosaic(args.input_folder, args.rows, args.columns, args.output_file, args.codec)
 
 # python video_mosaic2.py --input_folder output_log1/video_selected --rows 9 --columns 7 --codec libx264
+# python video_mosaic2.py --input_folder /mnt/NAS/data/assembly/last_week/vis/video/mosaic/final_decision_resize  --rows 13 --columns 8 --codec libx264

@@ -1,12 +1,12 @@
 {
-  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/video/bb/artifact",
+  "trans_folder_path": "/mnt/NAS/data/assembly/last_week/dataset/breakingbad_fantastic/GARF/everyday/version_0/epoch-0/json_results",
   "model_folder_path": "/mnt/NAS/home/sl10496/breaking_bad/volume",
-  "output_folder": "/mnt/NAS/data/assembly/last_week/vis/video/bb_artifact",
+  "output_folder": "/mnt/NAS/data/assembly/last_week/vis/video/mosaic/everyday",
   "single_mode": false,
-  "traversal_all": true,
-  "random_draw": false,
-  "range": [0, 10],
-  "file_num": 11,
+  "traversal_all": false,
+  "random_draw": true,
+  "range": [200,7871],
+  "file_num": 200,
   "dotted_line": false,
   "data_mode": "",
   "clean_mode": false,
@@ -17,6 +17,7 @@
   "rename": true,
   "force_painting": true,
   "first_texture_match": false,
-  "min_num": 0
+  "min_num": 5,
+  "rotate_degree": [0,0,0] 
 }
 

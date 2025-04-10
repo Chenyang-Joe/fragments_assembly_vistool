@@ -18,8 +18,8 @@
    conda install -c conda-forge ffmpeg
    ```
 
-5. **Install `trimesh` (optional for removal)**
-   `trimesh` must be installed in python env concluded in blender. Find blender python env first
+5. **Install `trimesh, scikit-learn` (optional for removal)**
+   `trimesh, scikit-learn` must be installed in python env concluded in blender. Find blender python env first
    ```bash
    blender --background --python-expr "import sys; print(sys.executable)"   
    ```
@@ -28,6 +28,7 @@
    /python/path/example/python/bin/python3.11 -m pip install --upgrade pip
    /python/path/example/python/bin/python3.11 -m ensurepip  
    /python/path/example/python/bin/python3.11 -m pip install trimesh
+   /python/path/example/python/bin/python3.11 -m pip install scikit-learn
    blender --background --python-expr "import trimesh; print(trimesh.__version__)"      
    ```
 ---
